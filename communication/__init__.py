@@ -11,9 +11,13 @@ Sub-modules:
   messages are aggregated (mean, attention, GNN).
 * :mod:`communication.channel`   -- ties topology + protocol together and
   routes messages for one step.
+* :mod:`communication.adaptive`  -- learned, weighted (attention) edge matrix
+  for adaptive communication (PyTorch; imported on demand).
+* :mod:`communication.statistics` -- statistics of a weighted communication graph.
 """
 
 from communication.graph import InteractionGraph
 from communication.message import Message
+from communication.statistics import weight_matrix_statistics
 
-__all__ = ["Message", "InteractionGraph"]
+__all__ = ["Message", "InteractionGraph", "weight_matrix_statistics"]

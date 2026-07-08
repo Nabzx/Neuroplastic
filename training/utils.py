@@ -76,4 +76,53 @@ def build_communication_mask(
     return torch.as_tensor(receiver_by_sender, dtype=torch.float32, device=device)
 
 
-__all__ = ["resolve_device", "stack_by_agent", "build_communication_mask"]
+def build_structural_mask(agent_ids, comm_config, device: str):
+    """Build a binary ``[N, N]`` mask of *candidate* edges for adaptive comm.
+
+    Entry ``[i, j] = 1`` means sender ``j`` may communicate to receiver ``i``
+    (per the configured topology); the adaptive layer then learns the weight of
+    each allowed edge. Self-loops are excluded. Returns ``None`` when disabled.
+    """
+    if not getattr(comm_config, "enabled", True):
+        return None
+
+    import numpy as np
+    import torch
+
+    from communication.graph import InteractionGraph
+    from communication.topology import make_topology
+
+    graph = InteractionGraph(list(agent_ids))
+    topology = make_topology(comm_config)
+    topology.reset()
+    topology.update(graph, {}, 0)
+
+    adjacency = graph.adjacency_matrix()               # [N, N], sender x receiver
+    receiver_by_sender = (adjacency.T > 0).astype(np.float32)
+    np.fill_diagonal(receiver_by_sender, 0.0)          # no self-loops
+    return torch.as_tensor(receiver_by_sender, dtype=torch.float32, device=device)
+
+
+def build_comm(agent_ids, comm_config, device: str) -> tuple[str, Any]:
+    """Resolve the communication mode and its mask from config.
+
+    Returns ``(mode, mask)`` where ``mode`` is ``"none" | "fixed" | "adaptive"``:
+
+    * disabled            -> ``("none", None)``
+    * ``protocol=attention`` -> ``("adaptive", binary structural mask)``
+    * otherwise           -> ``("fixed", row-normalised uniform mask)``
+    """
+    if not getattr(comm_config, "enabled", True):
+        return "none", None
+    if getattr(comm_config, "protocol", "mean") == "attention":
+        return "adaptive", build_structural_mask(agent_ids, comm_config, device)
+    return "fixed", build_communication_mask(agent_ids, comm_config, device)
+
+
+__all__ = [
+    "resolve_device",
+    "stack_by_agent",
+    "build_communication_mask",
+    "build_structural_mask",
+    "build_comm",
+]

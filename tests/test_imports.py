@@ -59,6 +59,7 @@ def test_torch_dependent_modules():
     importlib.import_module("agents.recurrent_policy")
     importlib.import_module("training.learner")
     importlib.import_module("training.rollout")
+    importlib.import_module("communication.adaptive")
 
 
 def test_dry_run_describe_resolves_wiring():

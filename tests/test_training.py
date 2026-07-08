@@ -54,8 +54,10 @@ def test_ring_mask_is_sparse():
 # Policy network
 # --------------------------------------------------------------------------- #
 def test_policy_forward_shapes_with_communication():
-    net = PolicyNetwork(obs_dim=5, action_dim=3, hidden_dim=16, obs_embedding_dim=8, message_dim=4)
-    cfg = CommunicationConfig(enabled=True, topology="fully_connected")
+    net = PolicyNetwork(
+        obs_dim=5, action_dim=3, hidden_dim=16, obs_embedding_dim=8, message_dim=4, comm_mode="fixed"
+    )
+    cfg = CommunicationConfig(enabled=True, topology="fully_connected", protocol="mean")
     mask = build_communication_mask(AGENTS, cfg, "cpu")
     obs = torch.randn(2, 4, 5)  # [B, N, obs_dim]
     logits, value, messages = net(obs, mask)

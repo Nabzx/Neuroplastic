@@ -168,6 +168,33 @@ differentiable communication mask (`none` / dense / ring), so messages are
 learned end-to-end while the *topology* stays fixed. See
 [`docs/experiment_plan.md`](docs/experiment_plan.md) §7 for the model details.
 
+### Adaptive communication
+
+The adaptive setting learns a **weighted edge matrix** (attention over the graph)
+instead of a fixed uniform mask — messages are still learned, but *who is
+listened to* now adapts to the agents' state:
+
+```bash
+nci --config configs/adaptive.yaml
+```
+
+Graph statistics (edge density, weight entropy, effective degree) stream to the
+console and `runs/<name>/metrics.csv`. The learned graph exports to NetworkX:
+
+```python
+from configs import load_config
+from training.trainer import Trainer
+
+trainer = Trainer(load_config("configs/adaptive.yaml"))
+trainer.train()
+graph = trainer.export_communication_graph()   # InteractionGraph (weighted)
+nx_graph = graph.to_networkx()                  # networkx.DiGraph
+```
+
+This is dynamic *weighted* communication only — the edge weights are learned by
+the policy loss. Hebbian plasticity (updating a persistent weight matrix from
+activity) is a later milestone and reuses the same edge-matrix representation.
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy
@@ -179,8 +206,9 @@ Python · PyTorch · PettingZoo · NetworkX · NumPy
 - [x] Functional interaction graph + graph/information metrics + plasticity maths
 - [x] Environment layer (PettingZoo/SuperSuit) with reproducible seeding
 - [x] Learning baseline: shared-parameter PPO + fixed communication (none / full / sparse)
-- [ ] Recurrent policies + learned attention/GNN protocols
-- [ ] Adaptive-topology gating + Hebbian plasticity coupling (the neuroplastic model)
+- [x] Adaptive graph communication: learned attention edge-weights, graph stats, NetworkX export
+- [ ] Recurrent policies + multi-round GNN protocols; learned edge-*existence* gating
+- [ ] Hebbian plasticity coupling (the neuroplastic model)
 - [ ] Full evaluation over recorded rollouts + role-clustering
 - [ ] Benchmark sweep across conditions and seeds; write-up
 

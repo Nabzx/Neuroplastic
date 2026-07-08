@@ -63,14 +63,17 @@ class MeanPoolProtocol(Protocol):
 class AttentionProtocol(Protocol):
     """Attention-weighted aggregation over neighbour messages.
 
-    Placeholder: the query/key/value projections are learned and defined in the
-    training milestone (see docs/experiment_plan.md).
+    This numpy Protocol (the analysis/channel path) is a placeholder. The
+    *runnable* attention mechanism used during training is the differentiable
+    :class:`communication.adaptive.AdaptiveCommunication` (PyTorch), selected via
+    ``communication.protocol: attention``; it maintains a learned weighted edge
+    matrix and aggregates messages with it.
     """
 
     def aggregate(self, receiver, incoming, graph):  # pragma: no cover - deferred
         raise NotImplementedError(
-            "AttentionProtocol.aggregate is a placeholder; the attention "
-            "mechanism is specified in docs/experiment_plan.md."
+            "AttentionProtocol.aggregate (numpy path) is a placeholder; the "
+            "runnable attention lives in communication.adaptive.AdaptiveCommunication."
         )
 
 

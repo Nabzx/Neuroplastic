@@ -1,0 +1,17 @@
+# Adaptive graph-based communication (no plasticity).
+#
+# Learned attention edge-weights over a complete *candidate* graph: every pair
+# may communicate, and the strength of each directed edge is a dynamic function
+# of the agents' states, learned end-to-end via the policy loss. Contrast with
+# configs/baselines/fully_connected.yaml (same candidate graph, but fixed uniform
+# weights). Shares the baseline settings so the two are directly comparable.
+extends: baselines/base.yaml
+
+name: adaptive_communication
+notes: "Adaptive weighted communication: learned attention edge-weights, complete candidate graph, no plasticity."
+
+communication:
+  enabled: true
+  topology: fully_connected   # candidate edges (complete); attention learns the weights
+  protocol: attention         # -> adaptive weighted aggregation
+  attention_dim: 32

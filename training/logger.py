@@ -33,12 +33,18 @@ class MetricLogger:
         self._file.flush()
 
         if verbose:
-            self.console.info(
+            message = (
                 "iter=%(iteration)d steps=%(env_steps)d "
                 "ep_return=%(episode_return_mean).3f ep_len=%(episode_length_mean).1f "
                 "| pg=%(policy_loss).3f v=%(value_loss).3f ent=%(entropy).3f"
                 % _defaults(row)
             )
+            if "comm_effective_degree" in row:
+                message += (
+                    " | comm_deg=%(comm_effective_degree).2f "
+                    "dens=%(comm_edge_density).2f H=%(comm_weight_entropy).2f" % row
+                )
+            self.console.info(message)
 
     def close(self) -> None:
         if self._file is not None:

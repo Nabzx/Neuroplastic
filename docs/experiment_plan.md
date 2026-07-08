@@ -168,7 +168,13 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
   settings (none / fully-connected / sparse ring), reward + episode-length logging
   (`configs/baselines/`, `training/`). ✅  *Pending:* rollout recording of
   graphs/messages, checkpoints, recurrent policies, learned attention/GNN protocols.
-- **M3 — Adaptive topology & plasticity coupling:** §7.2 + neuromodulated §7.3.
+- **M2.5 — Adaptive weighted communication:** learned attention edge-weights over a
+  fixed candidate graph (`communication/adaptive.py`); the weighted edge matrix is
+  maintained per step, aggregates messages, is logged via graph statistics during
+  training, and exports to NetworkX. ✅ *No plasticity yet — weights are learned
+  purely by the policy loss.*
+- **M3 — Adaptive topology & plasticity coupling:** learned edge *existence* gating
+  (§7.2) + neuromodulated Hebbian plasticity (§7.3) on the edge matrix.
 - **M4 — Evaluation & analysis:** full metric suite over recorded rollouts,
   role-clustering, transfer entropy.
 - **M5 — Study:** sweep all conditions × seeds × benchmarks; test H1–H3; write-up.

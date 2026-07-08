@@ -36,6 +36,7 @@ class Trainer:
         self.learner = None
         self.buffer = None
         self.mask = None
+        self.comm_mode = "none"
         self.agent_ids: list[str] = []
         self.device = "cpu"
         self.history: list[dict[str, Any]] = []
@@ -49,7 +50,7 @@ class Trainer:
         from environments.registry import make_env
         from training.learner import SharedPPOLearner
         from training.rollout import RolloutBuffer
-        from training.utils import build_communication_mask, resolve_device
+        from training.utils import build_comm, resolve_device
 
         cfg = self.config
         self.device = resolve_device(cfg.device)
@@ -69,11 +70,12 @@ class Trainer:
             )
         action_dim = int(action_space.n)
 
-        self.mask = build_communication_mask(self.agent_ids, cfg.communication, self.device)
+        self.comm_mode, self.mask = build_comm(self.agent_ids, cfg.communication, self.device)
         self.learner = SharedPPOLearner(
             obs_dim=obs_dim,
             action_dim=action_dim,
             num_agents=len(self.agent_ids),
+            comm_mode=self.comm_mode,
             adjacency=self.mask,
             config=cfg,
             device=self.device,
@@ -98,7 +100,7 @@ class Trainer:
         cfg = self.config
         t = cfg.training
         n = len(self.agent_ids)
-        comm = "off" if self.mask is None else cfg.communication.topology
+        comm = self.comm_mode if self.comm_mode == "none" else f"{self.comm_mode}/{cfg.communication.topology}"
         self.logger.info(
             "Training %r: %d agents, communication=%s, %d env steps",
             cfg.name, n, comm, t.total_steps,
@@ -146,6 +148,10 @@ class Trainer:
             last_value = self.learner.value(obs)
             self.buffer.compute_gae(last_value, t.gamma, t.gae_lambda)
             metrics = self.learner.update(self.buffer)
+            # Snapshot the communication graph (from this rollout) for stats.
+            comm_stats = self.learner.communication_statistics(
+                self.learner.graph_snapshot(self.buffer.obs)
+            )
             self.buffer.reset()
 
             if ep_returns:
@@ -159,6 +165,7 @@ class Trainer:
                 "episode_length_mean": last_length_mean,
                 "num_episodes": len(ep_returns),
                 **{k: round(v, 6) for k, v in metrics.items()},
+                **{k: round(v, 6) for k, v in comm_stats.items()},
             }
             self.history.append(row)
             metric_logger.log(row, verbose=(iteration % console_every == 0 or iteration == num_iterations))
@@ -204,6 +211,27 @@ class Trainer:
             "eval_length_mean": float(sum(lengths) / len(lengths)),
             "eval_episodes": float(episodes),
         }
+
+    # -- communication graph export ---------------------------------------
+    def export_communication_graph(self, obs: Any | None = None):
+        """Export the current communication graph as an ``InteractionGraph``.
+
+        Uses the most recent rollout's observations by default (so call after
+        :meth:`train`). Returns ``None`` when communication is disabled; otherwise
+        the returned graph carries the (adaptive or fixed) edge weights and can be
+        handed to NetworkX via ``result.to_networkx()``.
+        """
+        from communication.graph import InteractionGraph
+
+        if not self._built:
+            self.build()
+        obs_batch = obs if obs is not None else self.buffer.obs
+        snapshot = self.learner.graph_snapshot(obs_batch)
+        if snapshot is None:
+            return None
+        return InteractionGraph.from_weight_matrix(
+            self.agent_ids, snapshot.detach().cpu().numpy()
+        )
 
     # -- dry run -----------------------------------------------------------
     def describe(self) -> dict[str, Any]:

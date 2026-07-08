@@ -31,13 +31,17 @@ class SharedPPOLearner:
         obs_dim: int,
         action_dim: int,
         num_agents: int,
+        comm_mode: str,
         adjacency: torch.Tensor | None,
         config: Any,
         device: str,
     ) -> None:
         self.device = device
         self.num_agents = num_agents
-        self.adjacency = adjacency  # fixed [N, N] mask, or None (no communication)
+        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive"
+        # For "fixed" this is a row-normalised uniform mask; for "adaptive" a
+        # binary structural (candidate-edge) mask; for "none" it is None.
+        self.adjacency = adjacency
 
         t = config.training
         self.net = PolicyNetwork(
@@ -47,6 +51,8 @@ class SharedPPOLearner:
             obs_embedding_dim=config.agent.obs_embedding_dim,
             message_dim=config.communication.message_dim,
             recurrent=False,
+            comm_mode=comm_mode,
+            attention_dim=config.communication.attention_dim,
         ).to(device)
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=t.lr, eps=1e-5)
 
@@ -140,6 +146,31 @@ class SharedPPOLearner:
                 n_updates += 1
 
         return {k: v / max(1, n_updates) for k, v in stats.items()}
+
+    # -- communication graph (statistics / export) -------------------------
+    @torch.no_grad()
+    def graph_snapshot(self, obs: torch.Tensor) -> torch.Tensor | None:
+        """Return the current ``[N, N]`` edge-weight matrix (receiver x sender).
+
+        * ``"none"``     -> ``None``.
+        * ``"fixed"``    -> the constant uniform mask (the weights are fixed).
+        * ``"adaptive"`` -> the attention weights averaged over the ``obs`` batch,
+          i.e. the mean communication graph the policy is currently using.
+        """
+        if self.comm_mode == "none":
+            return None
+        if self.comm_mode == "fixed":
+            return self.adjacency
+        weights = self.net.edge_weights(obs, self.adjacency)  # [B, N, N]
+        return weights.mean(dim=0)
+
+    def communication_statistics(self, matrix: torch.Tensor | None) -> dict[str, float]:
+        """Summary statistics of an edge-weight ``matrix`` (empty dict if None)."""
+        if matrix is None:
+            return {}
+        from communication.statistics import weight_matrix_statistics
+
+        return weight_matrix_statistics(matrix.detach().cpu().numpy())
 
 
 __all__ = ["SharedPPOLearner"]

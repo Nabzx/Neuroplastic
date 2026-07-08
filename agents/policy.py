@@ -95,10 +95,14 @@ class PolicyNetwork(nn.Module):
         obs_embedding_dim: int = 64,
         message_dim: int = 16,
         recurrent: bool = False,
+        comm_mode: str = "none",
+        attention_dim: int = 32,
     ) -> None:
         super().__init__()
         self.message_dim = message_dim
         self.recurrent = recurrent
+        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive"
+        self._last_weights: torch.Tensor | None = None
 
         # Actor (with communication) -- also produces the messages.
         self.actor_encoder = ObservationEncoder(obs_dim, obs_embedding_dim)
@@ -111,14 +115,31 @@ class PolicyNetwork(nn.Module):
         self.critic_core = _trunk(obs_embedding_dim + message_dim, hidden_dim)
         self.critic_head = _orthogonal(nn.Linear(hidden_dim, 1), gain=1.0)
 
-    def _aggregate(self, messages: torch.Tensor, adjacency: torch.Tensor | None) -> torch.Tensor:
-        if adjacency is None:
-            return torch.zeros(
-                *messages.shape[:-1], self.message_dim,
-                device=messages.device, dtype=messages.dtype,
-            )
-        # context_i = sum_j adjacency[i, j] * messages_j  (mean of neighbours)
-        return torch.einsum("ij,bjm->bim", adjacency, messages)
+        # Adaptive (learned, weighted) communication -- built only when needed.
+        self.adaptive = None
+        if comm_mode == "adaptive":
+            from communication.adaptive import AdaptiveCommunication
+
+            self.adaptive = AdaptiveCommunication(obs_embedding_dim, message_dim, attention_dim)
+
+    def _communicate(
+        self, embeddings: torch.Tensor, messages: torch.Tensor, adjacency: torch.Tensor | None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
+        """Return ``(context, weights)`` for the configured communication mode.
+
+        ``adjacency`` is a row-normalised uniform mask for ``"fixed"`` mode and a
+        binary structural mask (candidate edges) for ``"adaptive"`` mode.
+        """
+        if self.comm_mode == "adaptive":
+            return self.adaptive(embeddings, messages, adjacency)
+        if self.comm_mode == "fixed" and adjacency is not None:
+            # context_i = sum_j adjacency[i, j] * messages_j  (uniform mean)
+            return torch.einsum("ij,bjm->bim", adjacency, messages), None
+        context = torch.zeros(
+            *embeddings.shape[:-1], self.message_dim,
+            device=embeddings.device, dtype=embeddings.dtype,
+        )
+        return context, None
 
     def forward(
         self,
@@ -127,8 +148,8 @@ class PolicyNetwork(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return ``(logits, value, messages)`` for ``obs`` of shape ``[B, N, obs_dim]``.
 
-        ``adjacency`` is a row-normalised ``[N, N]`` receiver-by-sender matrix, or
-        ``None`` for the no-communication setting.
+        ``adjacency`` is the communication mask (row-normalised for ``"fixed"``,
+        binary structural for ``"adaptive"``), or ``None`` for no communication.
         """
         if self.recurrent:  # pragma: no cover - reserved for a later milestone
             raise NotImplementedError(
@@ -138,7 +159,8 @@ class PolicyNetwork(nn.Module):
 
         a_emb = self.actor_encoder(obs)                       # [B, N, E]
         messages = self.message_head(a_emb)                   # [B, N, M]
-        context = self._aggregate(messages, adjacency)        # [B, N, M]
+        context, weights = self._communicate(a_emb, messages, adjacency)
+        self._last_weights = None if weights is None else weights.detach()
 
         logits = self.actor_head(self.actor_core(torch.cat([a_emb, context], dim=-1)))
 
@@ -148,6 +170,20 @@ class PolicyNetwork(nn.Module):
         ).squeeze(-1)                                          # [B, N]
 
         return logits, value, messages
+
+    @torch.no_grad()
+    def edge_weights(
+        self, obs: torch.Tensor, adjacency: torch.Tensor | None
+    ) -> torch.Tensor | None:
+        """Return the adaptive edge-weight matrix ``[B, N, N]`` (or ``None``).
+
+        Only meaningful in ``"adaptive"`` mode; used to snapshot the current
+        communication graph for statistics/export without an actor/critic pass.
+        """
+        if self.comm_mode != "adaptive":
+            return None
+        a_emb = self.actor_encoder(obs)
+        return self.adaptive.edge_weights(a_emb, adjacency)
 
 
 __all__ = [

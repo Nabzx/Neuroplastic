@@ -46,8 +46,9 @@ class CommunicationConfig:
 
     enabled: bool = True
     message_dim: int = 16
-    topology: str = "adaptive"           # fully_connected | k_nearest | adaptive | static
-    protocol: str = "attention"          # mean | attention | gnn
+    topology: str = "adaptive"           # fully_connected | k_nearest | ring | adaptive | static
+    protocol: str = "attention"          # mean (fixed uniform) | attention (adaptive) | gnn
+    attention_dim: int = 32              # query/key dim for adaptive (attention) weighting
     max_neighbours: int = 4              # bandwidth cap for sparse topologies
     num_rounds: int = 1                  # message-passing rounds per step
     bandwidth: int | None = None         # optional bits/step channel constraint

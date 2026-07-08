@@ -27,8 +27,9 @@ agent:
 communication:
   enabled: true
   message_dim: 16
-  topology: adaptive    # fully_connected | k_nearest | adaptive | static
-  protocol: attention   # mean | attention | gnn
+  topology: adaptive    # fully_connected | k_nearest | ring | adaptive | static
+  protocol: attention   # mean (fixed uniform) | attention (adaptive) | gnn
+  attention_dim: 32     # query/key dim for adaptive (attention) edge-weights
   max_neighbours: 4
   num_rounds: 1
   bandwidth: null
