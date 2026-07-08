@@ -71,6 +71,8 @@ class Trainer:
                 "env.continuous_actions=false (or add a continuous head later)."
             )
         action_dim = int(action_space.n)
+        self.obs_dim = obs_dim
+        self.action_dim = action_dim
 
         self.comm_mode, self.mask = build_comm(self.agent_ids, cfg, self.device)
         self.learner = SharedPPOLearner(
@@ -231,6 +233,39 @@ class Trainer:
             "eval_length_mean": float(sum(lengths) / len(lengths)),
             "eval_episodes": float(episodes),
         }
+
+    # -- behavioural profiles (functional specialisation) ------------------
+    def behavioural_profiles(self, episodes: int = 20, seed: int = 0) -> Any:
+        """Greedy-rollout action distribution per agent, shape ``[N, action_dim]``.
+
+        Each row is an agent's normalised histogram over discrete actions -- the
+        behavioural descriptor used to measure functional specialisation.
+        """
+        import numpy as np
+
+        from training.utils import stack_by_agent
+
+        if not self._built:
+            self.build()
+        n = len(self.agent_ids)
+        counts = np.zeros((n, self.action_dim), dtype=float)
+        for episode in range(episodes):
+            obs_dict, _ = self.env.reset(seed=seed + episode)
+            obs = stack_by_agent(obs_dict, self.agent_ids, self.device)
+            while self.env.agents:
+                action, _, _ = self.learner.act(obs, deterministic=True)
+                for i, aid in enumerate(self.agent_ids):
+                    if aid in self.env.agents:
+                        counts[i, int(action[i].item())] += 1.0
+                result = self.env.step(
+                    {aid: int(action[i].item()) for i, aid in enumerate(self.agent_ids)}
+                )
+                if not self.env.agents:
+                    break
+                obs = stack_by_agent(result.observations, self.agent_ids, self.device)
+        row_sums = counts.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1.0
+        return counts / row_sums
 
     # -- communication graph export ---------------------------------------
     def export_communication_graph(self, obs: Any | None = None):

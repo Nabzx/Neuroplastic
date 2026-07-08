@@ -1,15 +1,17 @@
-"""Quantify functional specialisation from per-agent role descriptors.
+"""Quantify functional specialisation from per-agent behavioural descriptors.
 
-Given role descriptors (see :func:`agents.specialisation.extract_role_descriptor`),
-we ask: do agents form distinct clusters (roles)? and how differentiated is the
-population? ``role_entropy`` is functional given cluster labels; the clustering
-of continuous descriptors is deferred so we do not hard-depend on a clustering
-library at this stage.
+Given per-agent descriptors -- here, each agent's action distribution over a
+greedy evaluation rollout -- we ask: do agents behave *differently* (distinct
+functional roles)? We report a continuous ``role_diversity`` (mean pairwise
+Jensen-Shannon distance) and a discrete role count/entropy from a simple
+distance-threshold clustering (no external clustering dependency).
 """
 
 from __future__ import annotations
 
 from typing import Sequence
+
+import numpy as np
 
 from core.types import ArrayLike
 
@@ -34,16 +36,77 @@ def role_cluster_count(labels: Sequence[int]) -> int:
     return len(set(labels))
 
 
-def cluster_roles(descriptors: ArrayLike, max_roles: int = 8) -> list[int]:  # pragma: no cover - deferred
-    """Cluster continuous role descriptors into discrete roles (placeholder).
+def _jensen_shannon_distance(p: np.ndarray, q: np.ndarray) -> float:
+    """Jensen-Shannon distance (bits, in ``[0, 1]``) between two distributions."""
+    p = np.asarray(p, dtype=float)
+    q = np.asarray(q, dtype=float)
+    p = p / p.sum() if p.sum() > 0 else p
+    q = q / q.sum() if q.sum() > 0 else q
+    m = 0.5 * (p + q)
 
-    Intended approach (per docs/experiment_plan.md): silhouette-selected k-means
-    (or a gap statistic) over standardised descriptors.
+    def _kl(a: np.ndarray, b: np.ndarray) -> float:
+        mask = a > 0
+        return float(np.sum(a[mask] * np.log2(a[mask] / b[mask])))
+
+    divergence = 0.5 * _kl(p, m) + 0.5 * _kl(q, m)
+    return float(np.sqrt(max(0.0, divergence)))
+
+
+def cluster_roles(descriptors: ArrayLike, threshold: float = 0.25) -> list[int]:
+    """Cluster agents into roles by connected components under a JS-distance threshold.
+
+    Two agents share a role if their descriptors are within ``threshold`` (JS
+    distance). Simple, deterministic and dependency-free -- adequate for the small
+    agent counts here; a silhouette-selected k-means remains future work.
     """
-    raise NotImplementedError(
-        "cluster_roles is a placeholder; the clustering procedure is specified "
-        "in docs/experiment_plan.md."
-    )
+    profiles = np.asarray(descriptors, dtype=float)
+    n = profiles.shape[0]
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _jensen_shannon_distance(profiles[i], profiles[j]) < threshold:
+                parent[find(i)] = find(j)
+
+    roots = [find(i) for i in range(n)]
+    relabel = {root: label for label, root in enumerate(sorted(set(roots)))}
+    return [relabel[r] for r in roots]
 
 
-__all__ = ["role_entropy", "role_cluster_count", "cluster_roles"]
+def functional_specialisation(profiles: ArrayLike, threshold: float = 0.25) -> dict[str, float]:
+    """Specialisation metrics from per-agent behavioural profiles ``[N, K]``.
+
+    Returns ``role_diversity`` (mean pairwise JS distance, 0 = identical
+    behaviour), plus ``role_cluster_count`` and ``role_entropy`` from a
+    distance-threshold clustering.
+    """
+    data = np.asarray(profiles, dtype=float)
+    n = data.shape[0]
+    if n < 2:
+        return {"role_diversity": 0.0, "role_cluster_count": float(n), "role_entropy": 0.0}
+
+    distances = [
+        _jensen_shannon_distance(data[i], data[j])
+        for i in range(n)
+        for j in range(i + 1, n)
+    ]
+    labels = cluster_roles(data, threshold=threshold)
+    return {
+        "role_diversity": float(np.mean(distances)),
+        "role_cluster_count": float(role_cluster_count(labels)),
+        "role_entropy": role_entropy(labels),
+    }
+
+
+__all__ = [
+    "role_entropy",
+    "role_cluster_count",
+    "cluster_roles",
+    "functional_specialisation",
+]

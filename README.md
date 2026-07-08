@@ -256,6 +256,23 @@ training, and per-agent hub-centrality over time. The plastic run's heatmaps and
 graph snapshots visibly show the edges starting uniform and then differentiating
 and decaying as plasticity reshapes the graph.
 
+### Full benchmark suite
+
+The experimental evaluation that ties everything together — every communication
+mode (none / fully-connected / sparse / adaptive / neuroplastic) × cooperative
+benchmark × multiple seeds, with an identical budget:
+
+```bash
+python scripts/run_benchmark.py --seeds 5 --steps 20000 --output results/benchmark
+```
+
+It aggregates metrics across seeds (mean / std / bootstrap CI), runs
+neuroplastic-vs-fixed permutation tests, writes `comparison.json`,
+`comparison.csv`, `summary_tables.csv`, `summary_statistics.json`, the
+publication figures, and a deliberately **honest** `SUMMARY.md` interpretation
+(mixed/negative results are reported as such). The committed findings from one
+such run are in [`docs/benchmark_results.md`](docs/benchmark_results.md).
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy
@@ -270,9 +287,9 @@ Python · PyTorch · PettingZoo · NetworkX · NumPy
 - [x] Adaptive graph communication: learned attention edge-weights, graph stats, NetworkX export
 - [x] Hebbian-inspired plasticity: reward-gated plastic edge-weight matrix (decay, clamp, homeostasis)
 - [x] Evaluation tools: coordination + graph/entropy + edge-weight-stability metrics; 3-way comparison scripts
+- [x] Functional-specialisation analysis + full benchmark sweep (5 methods × envs × seeds) with statistics, publication figures and an honest auto-written summary
 - [ ] Recurrent policies + multi-round GNN protocols; learned edge-*existence* gating
-- [ ] Role-clustering / functional-specialisation analysis over recorded rollouts
-- [ ] Benchmark sweep across conditions and seeds; write-up
+- [ ] Larger benchmark family, more seeds, and hyper-parameter tuning
 
 ## Citation
 

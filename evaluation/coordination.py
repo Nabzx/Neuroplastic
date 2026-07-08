@@ -64,6 +64,19 @@ def final_reward(returns: ArrayLike, window_frac: float = 0.1) -> float:
     return float(r[-window:].mean())
 
 
+def reward_variance(returns: ArrayLike, window_frac: float = 0.25) -> float:
+    """Variance of the return over the final ``window_frac`` of iterations.
+
+    A measure of how *stable* the converged policy is (lower = steadier).
+    """
+    r = np.asarray(returns, dtype=float)
+    r = r[~np.isnan(r)]
+    if r.size == 0:
+        return float("nan")
+    window = max(1, int(len(r) * window_frac))
+    return float(np.var(r[-window:]))
+
+
 def _smooth(x: np.ndarray, window: int) -> np.ndarray:
     """Trailing-aligned moving average kept to the same length as ``x``."""
     window = max(1, min(window, len(x)))
@@ -118,5 +131,6 @@ __all__ = [
     "coordination_index",
     "cumulative_reward",
     "final_reward",
+    "reward_variance",
     "convergence_speed",
 ]

@@ -17,7 +17,12 @@ import numpy as np
 from communication.graph import InteractionGraph
 from communication.statistics import weight_matrix_statistics
 from core.types import AgentID, ArrayLike
-from evaluation.coordination import convergence_speed, cumulative_reward, final_reward
+from evaluation.coordination import (
+    convergence_speed,
+    cumulative_reward,
+    final_reward,
+    reward_variance,
+)
 from evaluation.graph_metrics import GRAPH_METRICS
 from evaluation.stability import edge_weight_stability
 
@@ -73,6 +78,7 @@ def coordination_report(returns: ArrayLike, steps: ArrayLike | None = None) -> d
     return {
         "final_reward": final_reward(returns),
         "cumulative_reward": cumulative_reward(returns),
+        "reward_variance": reward_variance(returns),
         **convergence_speed(returns, steps),
     }
 

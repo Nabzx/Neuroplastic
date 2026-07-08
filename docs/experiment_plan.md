@@ -186,4 +186,10 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
   (`evaluation/report.py`, `scripts/compare_communication.py`,
   `scripts/evaluate_run.py`). ✅ *Pending:* role-clustering / functional
   specialisation and transfer entropy over recorded rollouts.
-- **M5 — Study:** sweep all conditions × seeds × benchmarks; test H1–H3; write-up.
+- **M5 — Study:** sweep all five communication modes × cooperative benchmarks ×
+  seeds at an identical budget; aggregate with CIs; permutation-test neuroplastic
+  vs fixed; publication figures; auto-written honest summary
+  (`training/benchmark.py`, `analysis/aggregate.py`, `analysis/interpret.py`,
+  `scripts/run_benchmark.py`). ✅ Results: [`docs/benchmark_results.md`](benchmark_results.md).
+  *Caveat:* run at a small seed count / short budget — the study is a
+  demonstration of the protocol, not a definitive result.
