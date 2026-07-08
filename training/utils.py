@@ -103,20 +103,29 @@ def build_structural_mask(agent_ids, comm_config, device: str):
     return torch.as_tensor(receiver_by_sender, dtype=torch.float32, device=device)
 
 
-def build_comm(agent_ids, comm_config, device: str) -> tuple[str, Any]:
-    """Resolve the communication mode and its mask from config.
+def build_comm(agent_ids, config, device: str) -> tuple[str, Any]:
+    """Resolve the communication mode and its mask from the full config.
 
-    Returns ``(mode, mask)`` where ``mode`` is ``"none" | "fixed" | "adaptive"``:
+    Returns ``(mode, mask)`` where ``mode`` is
+    ``"none" | "fixed" | "adaptive" | "plastic"``:
 
-    * disabled            -> ``("none", None)``
+    * comm disabled          -> ``("none", None)``
+    * plasticity enabled     -> ``("plastic", binary structural mask)``
     * ``protocol=attention`` -> ``("adaptive", binary structural mask)``
-    * otherwise           -> ``("fixed", row-normalised uniform mask)``
+    * otherwise              -> ``("fixed", row-normalised uniform mask)``
+
+    Plasticity takes precedence over attention: the Hebbian edge matrix *is* the
+    weighting mechanism in plastic mode.
     """
-    if not getattr(comm_config, "enabled", True):
+    comm = config.communication
+    plasticity = config.plasticity
+    if not getattr(comm, "enabled", True):
         return "none", None
-    if getattr(comm_config, "protocol", "mean") == "attention":
-        return "adaptive", build_structural_mask(agent_ids, comm_config, device)
-    return "fixed", build_communication_mask(agent_ids, comm_config, device)
+    if getattr(plasticity, "enabled", False) and getattr(plasticity, "rule", "none") not in ("none", None):
+        return "plastic", build_structural_mask(agent_ids, comm, device)
+    if getattr(comm, "protocol", "mean") == "attention":
+        return "adaptive", build_structural_mask(agent_ids, comm, device)
+    return "fixed", build_communication_mask(agent_ids, comm, device)
 
 
 __all__ = [

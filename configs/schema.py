@@ -60,11 +60,13 @@ class PlasticityConfig:
 
     enabled: bool = True
     rule: str = "hebbian"                # hebbian | oja | none
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-3          # Hebbian step size (eta)
     decay: float = 1e-4                  # weight decay / forgetting
     modulation: str = "reward_gated"     # none | reward_gated | three_factor
     homeostasis: bool = True             # synaptic scaling to keep weights bounded
-    update_every: int = 1                # env steps between plasticity updates
+    max_weight: float = 2.0              # per-edge clamp bound for stability
+    baseline_momentum: float = 0.05      # EMA rate for the reward baseline (modulation)
+    update_every: int = 1                # plasticity updates every N training iterations
 
 
 @dataclass

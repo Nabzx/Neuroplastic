@@ -41,7 +41,9 @@ plasticity:
   decay: 0.0001
   modulation: reward_gated   # none | reward_gated | three_factor
   homeostasis: true
-  update_every: 1
+  max_weight: 2.0       # per-edge clamp bound
+  baseline_momentum: 0.05    # EMA rate for reward baseline (modulation)
+  update_every: 1       # plasticity updates every N training iterations
 
 training:
   algorithm: ippo

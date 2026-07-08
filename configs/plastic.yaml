@@ -1,0 +1,28 @@
+# Neuroplastic communication: Hebbian-inspired plastic edge weights.
+#
+# A persistent edge-weight matrix over a complete candidate graph is updated by a
+# reward-gated Hebbian rule (strengthen edges between agents whose communication
+# is correlated during successful coordination; decay unused ones). Messages are
+# still learned by PPO; only the edge weights are plastic. Contrast with:
+#   * configs/baselines/fully_connected.yaml (fixed uniform weights)
+#   * configs/adaptive.yaml                  (learned attention weights)
+extends: baselines/base.yaml
+
+name: plastic_communication
+notes: "Hebbian-inspired plastic communication: reward-gated edge-weight updates, no attention."
+
+communication:
+  enabled: true
+  topology: fully_connected   # candidate edges; plasticity learns the weights
+  protocol: mean              # ignored in plastic mode (edge matrix does the weighting)
+
+plasticity:
+  enabled: true
+  rule: hebbian
+  learning_rate: 0.1          # Hebbian step size
+  decay: 0.01                 # forgetting / prevents all edges saturating
+  modulation: reward_gated    # strengthen during successful coordination
+  homeostasis: true           # synaptic scaling for stability
+  max_weight: 2.0             # per-edge clamp
+  baseline_momentum: 0.05
+  update_every: 1

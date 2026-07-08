@@ -191,9 +191,29 @@ graph = trainer.export_communication_graph()   # InteractionGraph (weighted)
 nx_graph = graph.to_networkx()                  # networkx.DiGraph
 ```
 
-This is dynamic *weighted* communication only — the edge weights are learned by
-the policy loss. Hebbian plasticity (updating a persistent weight matrix from
-activity) is a later milestone and reuses the same edge-matrix representation.
+This is dynamic *weighted* communication where the edge weights are learned by
+the policy loss (attention). For weights learned by a *local activity rule*
+instead, see plasticity below.
+
+### Neuroplastic communication (Hebbian plasticity)
+
+Enable a **persistent edge-weight matrix** updated by a reward-gated Hebbian rule
+— edges strengthen between agents whose communication is correlated *during
+successful coordination*, and decay when unused:
+
+```bash
+nci --config configs/plastic.yaml
+```
+
+The plasticity coefficients are all configurable under `plasticity:` (learning
+rate, decay, `modulation`, `homeostasis`, `max_weight` clamp). Edge-weight
+evolution is logged two ways: summary statistics each iteration in
+`runs/<name>/metrics.csv` (`plast_*`, `comm_*` columns), and the full weight
+trajectory in `runs/<name>/edge_weights.npz` (`[snapshots, N, N]`).
+
+Messages are still learned by PPO; only the edge matrix is plastic — a
+deliberate two-timescale design (fast reward-driven policy, slow activity-driven
+synapses). See [`docs/experiment_plan.md`](docs/experiment_plan.md) §7.3.
 
 ## Tech stack
 
@@ -207,8 +227,8 @@ Python · PyTorch · PettingZoo · NetworkX · NumPy
 - [x] Environment layer (PettingZoo/SuperSuit) with reproducible seeding
 - [x] Learning baseline: shared-parameter PPO + fixed communication (none / full / sparse)
 - [x] Adaptive graph communication: learned attention edge-weights, graph stats, NetworkX export
+- [x] Hebbian-inspired plasticity: reward-gated plastic edge-weight matrix (decay, clamp, homeostasis)
 - [ ] Recurrent policies + multi-round GNN protocols; learned edge-*existence* gating
-- [ ] Hebbian plasticity coupling (the neuroplastic model)
 - [ ] Full evaluation over recorded rollouts + role-clustering
 - [ ] Benchmark sweep across conditions and seeds; write-up
 

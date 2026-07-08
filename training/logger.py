@@ -44,6 +44,11 @@ class MetricLogger:
                     " | comm_deg=%(comm_effective_degree).2f "
                     "dens=%(comm_edge_density).2f H=%(comm_weight_entropy).2f" % row
                 )
+            if "plast_modulation" in row:
+                message += (
+                    " | plast_mod=%(plast_modulation).3f "
+                    "w=%(plast_mean_weight).3f dP=%(plast_update_norm).4f" % row
+                )
             self.console.info(message)
 
     def close(self) -> None:

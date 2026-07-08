@@ -60,6 +60,7 @@ def test_torch_dependent_modules():
     importlib.import_module("training.learner")
     importlib.import_module("training.rollout")
     importlib.import_module("communication.adaptive")
+    importlib.import_module("plasticity.plastic_edges")
 
 
 def test_dry_run_describe_resolves_wiring():

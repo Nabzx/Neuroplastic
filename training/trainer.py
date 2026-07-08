@@ -17,6 +17,7 @@ This implements the first **learning baseline**: parameter-shared PPO over a
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from configs.schema import ExperimentConfig
@@ -40,6 +41,7 @@ class Trainer:
         self.agent_ids: list[str] = []
         self.device = "cpu"
         self.history: list[dict[str, Any]] = []
+        self.graph_history: list[tuple[int, Any]] = []
         self._built = False
 
     # -- construction ------------------------------------------------------
@@ -70,7 +72,7 @@ class Trainer:
             )
         action_dim = int(action_space.n)
 
-        self.comm_mode, self.mask = build_comm(self.agent_ids, cfg.communication, self.device)
+        self.comm_mode, self.mask = build_comm(self.agent_ids, cfg, self.device)
         self.learner = SharedPPOLearner(
             obs_dim=obs_dim,
             action_dim=action_dim,
@@ -148,12 +150,15 @@ class Trainer:
             last_value = self.learner.value(obs)
             self.buffer.compute_gae(last_value, t.gamma, t.gae_lambda)
             metrics = self.learner.update(self.buffer)
-            # Snapshot the communication graph (from this rollout) for stats.
-            comm_stats = self.learner.communication_statistics(
-                self.learner.graph_snapshot(self.buffer.obs)
-            )
+            # Hebbian plasticity update (plastic mode only), then snapshot the
+            # (possibly just-updated) communication graph for stats/logging.
+            plast_stats = self.learner.plasticity_update(self.buffer, iteration)
+            snapshot = self.learner.graph_snapshot(self.buffer.obs)
+            comm_stats = self.learner.communication_statistics(snapshot)
             self.buffer.reset()
 
+            if snapshot is not None:
+                self.graph_history.append((env_steps, snapshot.detach().cpu().numpy()))
             if ep_returns:
                 last_return_mean = float(sum(ep_returns) / len(ep_returns))
                 last_length_mean = float(sum(ep_lengths) / len(ep_lengths))
@@ -166,13 +171,28 @@ class Trainer:
                 "num_episodes": len(ep_returns),
                 **{k: round(v, 6) for k, v in metrics.items()},
                 **{k: round(v, 6) for k, v in comm_stats.items()},
+                **{k: round(v, 6) for k, v in plast_stats.items()},
             }
             self.history.append(row)
             metric_logger.log(row, verbose=(iteration % console_every == 0 or iteration == num_iterations))
 
         metric_logger.close()
+        self._save_graph_history()
         self.logger.info("Training complete: %d iterations, %d env steps.", num_iterations, env_steps)
         return self.history
+
+    def _save_graph_history(self) -> None:
+        """Persist the recorded edge-weight snapshots to ``edge_weights.npz``."""
+        if not self.graph_history:
+            return
+        import numpy as np
+
+        out = Path(self.config.output_dir) / self.config.name / "edge_weights.npz"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        steps = np.array([step for step, _ in self.graph_history])
+        weights = np.stack([w for _, w in self.graph_history])  # [num_snapshots, N, N]
+        np.savez(out, steps=steps, weights=weights, agents=np.array(self.agent_ids))
+        self.logger.info("Saved edge-weight evolution: %s (%d snapshots)", out, len(steps))
 
     # -- evaluation --------------------------------------------------------
     def evaluate(self, episodes: int | None = None, seed: int | None = None) -> dict[str, float]:

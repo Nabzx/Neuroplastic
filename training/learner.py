@@ -37,10 +37,11 @@ class SharedPPOLearner:
         device: str,
     ) -> None:
         self.device = device
+        self.config = config
         self.num_agents = num_agents
-        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive"
-        # For "fixed" this is a row-normalised uniform mask; for "adaptive" a
-        # binary structural (candidate-edge) mask; for "none" it is None.
+        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive" | "plastic"
+        # "fixed": row-normalised uniform mask; "adaptive"/"plastic": binary
+        # structural (candidate-edge) mask; "none": None.
         self.adjacency = adjacency
 
         t = config.training
@@ -53,6 +54,9 @@ class SharedPPOLearner:
             recurrent=False,
             comm_mode=comm_mode,
             attention_dim=config.communication.attention_dim,
+            num_agents=num_agents,
+            structural_mask=adjacency if comm_mode == "plastic" else None,
+            plasticity_config=config.plasticity if comm_mode == "plastic" else None,
         ).to(device)
         self.optimizer = torch.optim.Adam(self.net.parameters(), lr=t.lr, eps=1e-5)
 
@@ -147,6 +151,28 @@ class SharedPPOLearner:
 
         return {k: v / max(1, n_updates) for k, v in stats.items()}
 
+    # -- Hebbian plasticity ------------------------------------------------
+    @torch.no_grad()
+    def plasticity_update(self, buffer: Any, iteration: int) -> dict[str, float]:
+        """Apply one Hebbian update to the plastic edge matrix (plastic mode only).
+
+        The coactivity signal is the mean pairwise cosine similarity of the
+        agents' messages over the rollout ("who communicates in a correlated
+        way?"); the modulation is the rollout's mean reward (gated to a running
+        baseline inside :class:`~plasticity.plastic_edges.PlasticEdges`).
+        """
+        if self.comm_mode != "plastic":
+            return {}
+        update_every = max(1, int(getattr(self.config.plasticity, "update_every", 1)))
+        if iteration % update_every != 0:
+            return {}
+
+        messages = self.net.messages_only(buffer.obs)          # [T, N, M]
+        normed = messages / messages.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+        coactivity = torch.einsum("tim,tjm->ij", normed, normed) / messages.shape[0]  # [N, N]
+        reward = float(buffer.rewards.mean().item())
+        return self.net.plastic.hebbian_update(coactivity, reward)
+
     # -- communication graph (statistics / export) -------------------------
     @torch.no_grad()
     def graph_snapshot(self, obs: torch.Tensor) -> torch.Tensor | None:
@@ -154,13 +180,16 @@ class SharedPPOLearner:
 
         * ``"none"``     -> ``None``.
         * ``"fixed"``    -> the constant uniform mask (the weights are fixed).
-        * ``"adaptive"`` -> the attention weights averaged over the ``obs`` batch,
-          i.e. the mean communication graph the policy is currently using.
+        * ``"adaptive"`` -> the attention weights averaged over the ``obs`` batch.
+        * ``"plastic"``  -> the raw plastic (Hebbian) edge-weight matrix, i.e. the
+          actual synaptic strengths that evolve over training.
         """
         if self.comm_mode == "none":
             return None
         if self.comm_mode == "fixed":
             return self.adjacency
+        if self.comm_mode == "plastic":
+            return self.net.plastic.current_matrix()
         weights = self.net.edge_weights(obs, self.adjacency)  # [B, N, N]
         return weights.mean(dim=0)
 

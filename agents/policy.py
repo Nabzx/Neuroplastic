@@ -97,11 +97,14 @@ class PolicyNetwork(nn.Module):
         recurrent: bool = False,
         comm_mode: str = "none",
         attention_dim: int = 32,
+        num_agents: int | None = None,
+        structural_mask: torch.Tensor | None = None,
+        plasticity_config: object | None = None,
     ) -> None:
         super().__init__()
         self.message_dim = message_dim
         self.recurrent = recurrent
-        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive"
+        self.comm_mode = comm_mode  # "none" | "fixed" | "adaptive" | "plastic"
         self._last_weights: torch.Tensor | None = None
 
         # Actor (with communication) -- also produces the messages.
@@ -115,12 +118,17 @@ class PolicyNetwork(nn.Module):
         self.critic_core = _trunk(obs_embedding_dim + message_dim, hidden_dim)
         self.critic_head = _orthogonal(nn.Linear(hidden_dim, 1), gain=1.0)
 
-        # Adaptive (learned, weighted) communication -- built only when needed.
+        # Weighted-communication submodules -- built only for the chosen mode.
         self.adaptive = None
+        self.plastic = None
         if comm_mode == "adaptive":
             from communication.adaptive import AdaptiveCommunication
 
             self.adaptive = AdaptiveCommunication(obs_embedding_dim, message_dim, attention_dim)
+        elif comm_mode == "plastic":
+            from plasticity.plastic_edges import PlasticEdges
+
+            self.plastic = PlasticEdges(num_agents, structural_mask, plasticity_config)
 
     def _communicate(
         self, embeddings: torch.Tensor, messages: torch.Tensor, adjacency: torch.Tensor | None
@@ -132,6 +140,9 @@ class PolicyNetwork(nn.Module):
         """
         if self.comm_mode == "adaptive":
             return self.adaptive(embeddings, messages, adjacency)
+        if self.comm_mode == "plastic":
+            # Aggregation weights come from the persistent Hebbian edge matrix.
+            return self.plastic(messages), None
         if self.comm_mode == "fixed" and adjacency is not None:
             # context_i = sum_j adjacency[i, j] * messages_j  (uniform mean)
             return torch.einsum("ij,bjm->bim", adjacency, messages), None
@@ -170,6 +181,11 @@ class PolicyNetwork(nn.Module):
         ).squeeze(-1)                                          # [B, N]
 
         return logits, value, messages
+
+    @torch.no_grad()
+    def messages_only(self, obs: torch.Tensor) -> torch.Tensor:
+        """Return just the outgoing messages ``[B, N, M]`` (for plasticity)."""
+        return self.message_head(self.actor_encoder(obs))
 
     @torch.no_grad()
     def edge_weights(

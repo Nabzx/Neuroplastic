@@ -173,8 +173,12 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
   maintained per step, aggregates messages, is logged via graph statistics during
   training, and exports to NetworkX. ✅ *No plasticity yet — weights are learned
   purely by the policy loss.*
-- **M3 — Adaptive topology & plasticity coupling:** learned edge *existence* gating
-  (§7.2) + neuromodulated Hebbian plasticity (§7.3) on the edge matrix.
+- **M3 — Hebbian plasticity:** reward-gated Hebbian plasticity (§7.3) on the edge
+  matrix — a persistent weight matrix updated from message coactivity × reward
+  modulation, with weight decay, clamp and homeostasis
+  (`plasticity/plastic_edges.py`, `configs/plastic.yaml`). ✅ *Pending:* learned
+  edge-*existence* gating (§7.2, adaptive topology) and combining plasticity with
+  the attention weighting.
 - **M4 — Evaluation & analysis:** full metric suite over recorded rollouts,
   role-clustering, transfer entropy.
 - **M5 — Study:** sweep all conditions × seeds × benchmarks; test H1–H3; write-up.
