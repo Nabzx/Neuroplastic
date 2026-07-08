@@ -215,6 +215,30 @@ Messages are still learned by PPO; only the edge matrix is plastic — a
 deliberate two-timescale design (fast reward-driven policy, slow activity-driven
 synapses). See [`docs/experiment_plan.md`](docs/experiment_plan.md) §7.3.
 
+### Evaluate & compare
+
+Compare all three communication settings — trains each and prints/saves a
+side-by-side table of coordination, communication-graph and edge-weight-stability
+metrics:
+
+```bash
+python scripts/compare_communication.py --steps 150000 --agents 5 --output runs/compare
+```
+
+Evaluate a single saved run (no training or PyTorch needed — reads `metrics.csv`
++ `edge_weights.npz`):
+
+```bash
+python scripts/evaluate_run.py runs/plastic_communication
+```
+
+Metrics (`evaluation/`, all NumPy/NetworkX): cumulative reward, convergence
+speed, graph density, degree distribution, clustering coefficient, centrality,
+modularity, communication entropy, and edge-weight stability over training. A
+typical contrast: fixed communication is perfectly stable (drift 0) with uniform
+weights (degree heterogeneity 0), while neuroplastic communication drifts and
+differentiates as the Hebbian rule reshapes the graph.
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy
@@ -228,8 +252,9 @@ Python · PyTorch · PettingZoo · NetworkX · NumPy
 - [x] Learning baseline: shared-parameter PPO + fixed communication (none / full / sparse)
 - [x] Adaptive graph communication: learned attention edge-weights, graph stats, NetworkX export
 - [x] Hebbian-inspired plasticity: reward-gated plastic edge-weight matrix (decay, clamp, homeostasis)
+- [x] Evaluation tools: coordination + graph/entropy + edge-weight-stability metrics; 3-way comparison scripts
 - [ ] Recurrent policies + multi-round GNN protocols; learned edge-*existence* gating
-- [ ] Full evaluation over recorded rollouts + role-clustering
+- [ ] Role-clustering / functional-specialisation analysis over recorded rollouts
 - [ ] Benchmark sweep across conditions and seeds; write-up
 
 ## Citation

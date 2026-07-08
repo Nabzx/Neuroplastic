@@ -31,6 +31,8 @@ LIGHT_MODULES = [
     "evaluation.graph_metrics",
     "evaluation.information_metrics",
     "evaluation.coordination",
+    "evaluation.stability",
+    "evaluation.report",
     "evaluation.evaluator",
     "analysis.topology_analysis",
     "analysis.specialisation_analysis",
@@ -61,6 +63,7 @@ def test_torch_dependent_modules():
     importlib.import_module("training.rollout")
     importlib.import_module("communication.adaptive")
     importlib.import_module("plasticity.plastic_edges")
+    importlib.import_module("training.compare")
 
 
 def test_dry_run_describe_resolves_wiring():

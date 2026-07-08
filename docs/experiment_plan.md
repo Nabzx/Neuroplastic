@@ -179,6 +179,11 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
   (`plasticity/plastic_edges.py`, `configs/plastic.yaml`). ✅ *Pending:* learned
   edge-*existence* gating (§7.2, adaptive topology) and combining plasticity with
   the attention weighting.
-- **M4 — Evaluation & analysis:** full metric suite over recorded rollouts,
-  role-clustering, transfer entropy.
+- **M4 — Evaluation & comparison:** coordination (cumulative reward, convergence
+  speed), graph-structure (density, degree distribution, clustering, centrality,
+  modularity), communication entropy and edge-weight-stability metrics, plus
+  scripts comparing no / fixed / neuroplastic communication
+  (`evaluation/report.py`, `scripts/compare_communication.py`,
+  `scripts/evaluate_run.py`). ✅ *Pending:* role-clustering / functional
+  specialisation and transfer entropy over recorded rollouts.
 - **M5 — Study:** sweep all conditions × seeds × benchmarks; test H1–H3; write-up.

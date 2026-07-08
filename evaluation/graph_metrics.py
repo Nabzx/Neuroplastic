@@ -12,6 +12,7 @@ Directed graphs are projected to undirected for measures that assume it
 from __future__ import annotations
 
 import networkx as nx
+import numpy as np
 
 from communication.graph import InteractionGraph
 from core.registry import Registry
@@ -83,6 +84,74 @@ def modularity(graph: InteractionGraph) -> float:
     return float(nx.community.modularity(g, communities))
 
 
+@GRAPH_METRICS.register("mean_degree")
+def mean_degree(graph: InteractionGraph) -> float:
+    """Mean weighted degree (node strength) over all agents."""
+    g = graph.graph
+    if g.number_of_nodes() == 0:
+        return float("nan")
+    strengths = [d for _, d in g.degree(weight="weight")]
+    return float(np.mean(strengths))
+
+
+@GRAPH_METRICS.register("degree_heterogeneity")
+def degree_heterogeneity(graph: InteractionGraph) -> float:
+    """Coefficient of variation of weighted degree (0 = uniform, higher = hubs).
+
+    A compact summary of the degree distribution's shape.
+    """
+    g = graph.graph
+    if g.number_of_nodes() < 2:
+        return float("nan")
+    strengths = np.array([d for _, d in g.degree(weight="weight")], dtype=float)
+    mean = strengths.mean()
+    return float(strengths.std() / mean) if mean > 0 else 0.0
+
+
+@GRAPH_METRICS.register("weighted_clustering")
+def weighted_clustering(graph: InteractionGraph) -> float:
+    """Average weighted clustering coefficient (undirected projection)."""
+    g = graph.graph.to_undirected()
+    if g.number_of_nodes() == 0:
+        return float("nan")
+    return float(nx.average_clustering(g, weight="weight"))
+
+
+@GRAPH_METRICS.register("betweenness_centralisation")
+def betweenness_centralisation(graph: InteractionGraph) -> float:
+    """Freeman centralisation of betweenness (0 = flat, 1 = one bottleneck hub)."""
+    g = graph.graph
+    n = g.number_of_nodes()
+    if n < 3:
+        return float("nan")
+    values = np.array(list(nx.betweenness_centrality(g).values()), dtype=float)
+    peak = values.max()
+    return float((peak - values).sum() / (n - 1))
+
+
+@GRAPH_METRICS.register("eigenvector_centrality_max")
+def eigenvector_centrality_max(graph: InteractionGraph) -> float:
+    """Largest eigenvector centrality = influence of the most central agent.
+
+    Uses power iteration (no SciPy dependency); returns NaN if it cannot
+    converge (e.g. an empty graph).
+    """
+    g = graph.graph.to_undirected()
+    if g.number_of_edges() == 0:
+        return float("nan")
+    try:
+        centrality = nx.eigenvector_centrality(g, max_iter=1000, tol=1e-4, weight="weight")
+    except (nx.PowerIterationFailedConvergence, nx.NetworkXException):  # pragma: no cover
+        return float("nan")
+    return float(max(centrality.values()))
+
+
+def degree_distribution(graph: InteractionGraph, weighted: bool = True) -> np.ndarray:
+    """Return the (weighted) total-degree sequence, ordered by :pyattr:`agents`."""
+    weight = "weight" if weighted else None
+    return np.array([d for _, d in graph.graph.degree(weight=weight)], dtype=float)
+
+
 def compute_graph_metrics(graph: InteractionGraph, names: list[str]) -> dict[str, float]:
     """Compute the named graph metrics for ``graph``."""
     return {name: GRAPH_METRICS.get(name)(graph) for name in names}
@@ -95,5 +164,11 @@ __all__ = [
     "characteristic_path_length",
     "degree_centralisation",
     "modularity",
+    "mean_degree",
+    "degree_heterogeneity",
+    "weighted_clustering",
+    "betweenness_centralisation",
+    "eigenvector_centrality_max",
+    "degree_distribution",
     "compute_graph_metrics",
 ]
