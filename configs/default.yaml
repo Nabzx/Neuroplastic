@@ -14,6 +14,7 @@ env:
   num_agents: 3
   max_cycles: 25
   continuous_actions: false
+  preprocessors: []     # extra SuperSuit wrappers by name, e.g. [flatten]
   kwargs: {}
 
 agent:

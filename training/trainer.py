@@ -48,7 +48,9 @@ class Trainer:
         self.logger.info("Building experiment %r on device=%s", cfg.name, cfg.device)
 
         self.env = make_env(cfg.env)
-        agent_ids = self.env.agents
+        # Use the stable roster (populated before reset), not `agents`, which is
+        # only filled in after the first reset.
+        agent_ids = self.env.possible_agents
 
         plasticity_rule = make_plasticity(cfg.plasticity)
         self.channel = CommunicationChannel(agent_ids, cfg.communication, plasticity_rule)

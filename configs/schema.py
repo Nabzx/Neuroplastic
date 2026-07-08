@@ -25,6 +25,7 @@ class EnvConfig:
     num_agents: int = 3
     max_cycles: int = 25
     continuous_actions: bool = False
+    preprocessors: list[str] = field(default_factory=list)  # extra SuperSuit wrappers by name
     kwargs: dict[str, Any] = field(default_factory=dict)
 
 

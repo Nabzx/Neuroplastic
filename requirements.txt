@@ -10,7 +10,8 @@ pyyaml>=6.0
 
 # --- reinforcement-learning stack ---
 torch>=2.1
-pettingzoo[mpe]>=1.24
+pettingzoo[mpe]>=1.24,<1.25
+supersuit>=3.9
 gymnasium>=0.29
 
 # --- analysis + visualisation ---
