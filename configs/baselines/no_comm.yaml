@@ -1,0 +1,11 @@
+# Baseline 1/3 -- No communication.
+# Independent shared-parameter PPO agents; each acts on its own observation only.
+extends: base.yaml
+
+name: baseline_no_comm
+notes: "Baseline 1/3: no inter-agent communication."
+
+communication:
+  enabled: false
+  topology: static      # unused when disabled, but kept valid
+  protocol: mean

@@ -29,13 +29,19 @@ class Algorithm(ABC):
 
 @ALGORITHM_REGISTRY.register("ippo")
 class IPPO(Algorithm):
-    """Independent PPO baseline (placeholder)."""
+    """PPO baseline marker for config resolution / dry-run.
 
-    def update(self, batch: Any) -> dict[str, float]:  # pragma: no cover - deferred
+    The concrete, runnable implementation is
+    :class:`training.learner.SharedPPOLearner` (parameter-shared PPO). This class
+    is a torch-free registry entry so ``describe()`` / ``--dry-run`` can resolve
+    ``training.algorithm: ippo`` without importing torch; the trainer builds the
+    learner directly.
+    """
+
+    def update(self, batch: Any) -> dict[str, float]:  # pragma: no cover
         raise NotImplementedError(
-            "IPPO.update is a placeholder; the PPO objective is specified in "
-            "docs/experiment_plan.md and will be implemented in the training "
-            "milestone."
+            "Use training.learner.SharedPPOLearner (built by Trainer.build); this "
+            "class is only a registry marker for config resolution."
         )
 
 

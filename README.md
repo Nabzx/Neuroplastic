@@ -143,6 +143,31 @@ cfg = load_config("configs/default.yaml", overrides=["communication.topology=k_n
 print(cfg.plasticity.rule, cfg.communication.topology)
 ```
 
+### Train the baselines
+
+Three fixed-communication baselines (no plasticity), sharing an identical
+network so they are directly comparable — the reference points for the eventual
+neuroplastic model:
+
+```bash
+nci --config configs/baselines/no_comm.yaml          # 1. independent agents
+nci --config configs/baselines/fully_connected.yaml  # 2. everyone-to-everyone
+nci --config configs/baselines/sparse.yaml           # 3. fixed ring graph
+```
+
+Reward and episode-length curves stream to the console and to
+`runs/<name>/metrics.csv`. Shrink a run for a quick smoke check with overrides:
+
+```bash
+nci --config configs/baselines/fully_connected.yaml \
+    -o training.total_steps=20000 -o training.rollout_length=500
+```
+
+The learner is parameter-shared PPO; the three settings differ only in a fixed,
+differentiable communication mask (`none` / dense / ring), so messages are
+learned end-to-end while the *topology* stays fixed. See
+[`docs/experiment_plan.md`](docs/experiment_plan.md) §7 for the model details.
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy
@@ -152,9 +177,10 @@ Python · PyTorch · PettingZoo · NetworkX · NumPy
 
 - [x] Architecture, interfaces, config system, experiment plan (this scaffold)
 - [x] Functional interaction graph + graph/information metrics + plasticity maths
-- [ ] Policy forward pass with message integration under plastic gating
-- [ ] IPPO training loop + rollout collection with graph/message recording
-- [ ] Adaptive-topology gating and learned attention/GNN protocols
+- [x] Environment layer (PettingZoo/SuperSuit) with reproducible seeding
+- [x] Learning baseline: shared-parameter PPO + fixed communication (none / full / sparse)
+- [ ] Recurrent policies + learned attention/GNN protocols
+- [ ] Adaptive-topology gating + Hebbian plasticity coupling (the neuroplastic model)
 - [ ] Full evaluation over recorded rollouts + role-clustering
 - [ ] Benchmark sweep across conditions and seeds; write-up
 

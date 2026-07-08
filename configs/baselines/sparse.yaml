@@ -1,0 +1,13 @@
+# Baseline 3/3 -- Fixed sparse communication graph.
+# A ring lattice: each agent only exchanges messages with its two nearest
+# neighbours. Fixed and sparse (contrast with the fully-connected baseline).
+extends: base.yaml
+
+name: baseline_sparse
+notes: "Baseline 3/3: fixed sparse ring communication graph, mean-pooled messages."
+
+communication:
+  enabled: true
+  topology: ring
+  protocol: mean
+  max_neighbours: 2     # two neighbours (one each side of the ring)

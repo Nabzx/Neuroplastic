@@ -162,9 +162,12 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
 
 - **M0 — Scaffold (this repo):** architecture, interfaces, config system, plan,
   functional graph/metrics/plasticity maths, tests. ✅
-- **M1 — Forward pass:** implement §7.1 + mean/attention protocols; smoke-train on
-  `simple_spread`.
-- **M2 — Training loop:** IPPO + rollout recording (graphs/messages) + checkpoints.
+- **M1 — Forward pass:** feedforward actor-critic (§7.1) with a single-round mean
+  communication protocol over a **fixed** graph; trains on `simple_spread`. ✅
+- **M2 — Learning baselines:** shared-parameter PPO with three fixed communication
+  settings (none / fully-connected / sparse ring), reward + episode-length logging
+  (`configs/baselines/`, `training/`). ✅  *Pending:* rollout recording of
+  graphs/messages, checkpoints, recurrent policies, learned attention/GNN protocols.
 - **M3 — Adaptive topology & plasticity coupling:** §7.2 + neuromodulated §7.3.
 - **M4 — Evaluation & analysis:** full metric suite over recorded rollouts,
   role-clustering, transfer entropy.

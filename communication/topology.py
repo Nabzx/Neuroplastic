@@ -86,6 +86,33 @@ class KNearestTopology(Topology):
         )
 
 
+@TOPOLOGY_REGISTRY.register("ring")
+class RingTopology(Topology):
+    """A fixed sparse ring lattice: each agent talks to its nearest neighbours.
+
+    Agent ``i`` connects to ``max_neighbours`` closest agents on a ring
+    (``max_neighbours // 2`` on each side), giving a deterministic, sparse,
+    *fixed* communication graph -- the third baseline setting. For very small
+    populations the ring saturates to fully-connected (e.g. 3 agents), so use
+    >= 4 agents for a genuinely sparse graph.
+    """
+
+    def update(self, graph, messages, step) -> None:
+        agents = graph.agents
+        n = len(agents)
+        if n < 2:
+            graph.set_edges([])
+            return
+        half = max(1, getattr(self.config, "max_neighbours", 2) // 2)
+        half = min(half, (n - 1) // 2 if n > 2 else 1)
+        edges: list[tuple[str, str]] = []
+        for i in range(n):
+            for offset in range(1, half + 1):
+                edges.append((agents[i], agents[(i + offset) % n]))
+                edges.append((agents[i], agents[(i - offset) % n]))
+        graph.set_edges(edges, weight=1.0)
+
+
 @TOPOLOGY_REGISTRY.register("adaptive")
 class AdaptiveTopology(Topology):
     """A dynamic, learned topology -- the core object of study.
@@ -112,6 +139,7 @@ __all__ = [
     "FullyConnectedTopology",
     "StaticTopology",
     "KNearestTopology",
+    "RingTopology",
     "AdaptiveTopology",
     "TOPOLOGY_REGISTRY",
     "make_topology",

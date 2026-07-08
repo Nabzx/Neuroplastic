@@ -1,0 +1,30 @@
+# Shared settings for the three learning baselines.
+#
+# Fixed communication only (no plasticity), feedforward shared-parameter PPO,
+# and a common agent count so the three settings are directly comparable. The
+# three concrete baselines extend this file and change only `communication`.
+extends: ../default.yaml
+
+name: baseline_base
+notes: "Shared baseline settings: no plasticity, feedforward, shared PPO."
+
+env:
+  name: simple_spread
+  num_agents: 6          # >= 4 so the sparse ring is genuinely sparse
+  max_cycles: 25
+
+agent:
+  recurrent: false       # baseline network is feedforward
+
+plasticity:
+  enabled: false
+  rule: none
+  modulation: none
+  homeostasis: false
+
+training:
+  total_steps: 500000
+  rollout_length: 256
+  minibatch_size: 256
+  update_epochs: 4
+  log_every: 5120

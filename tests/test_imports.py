@@ -44,6 +44,7 @@ LIGHT_MODULES = [
     "training.trainer",
     "training.cli",
     "training.algorithms",
+    "training.utils",
 ]
 
 
@@ -56,6 +57,8 @@ def test_torch_dependent_modules():
     pytest.importorskip("torch")
     importlib.import_module("agents.policy")
     importlib.import_module("agents.recurrent_policy")
+    importlib.import_module("training.learner")
+    importlib.import_module("training.rollout")
 
 
 def test_dry_run_describe_resolves_wiring():

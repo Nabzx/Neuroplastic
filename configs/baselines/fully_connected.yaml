@@ -1,0 +1,11 @@
+# Baseline 2/3 -- Fixed fully-connected communication.
+# Every agent receives the mean of all other agents' messages each step.
+extends: base.yaml
+
+name: baseline_fully_connected
+notes: "Baseline 2/3: fixed fully-connected communication, mean-pooled messages."
+
+communication:
+  enabled: true
+  topology: fully_connected
+  protocol: mean
