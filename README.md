@@ -239,6 +239,23 @@ typical contrast: fixed communication is perfectly stable (drift 0) with uniform
 weights (degree heterogeneity 0), while neuroplastic communication drifts and
 differentiates as the Hebbian rule reshapes the graph.
 
+### Visualise
+
+Generate the standard figure set from saved logs (`metrics.csv` +
+`edge_weights.npz`) — matplotlib only, no training/PyTorch needed:
+
+```bash
+python scripts/visualise_run.py \
+    runs/baseline_no_comm runs/baseline_fully_connected runs/plastic_communication \
+    --output results/figures
+```
+
+Produces: reward curves, graph density and communication entropy over training,
+edge-weight heatmaps and communication-graph snapshots at early/mid/late
+training, and per-agent hub-centrality over time. The plastic run's heatmaps and
+graph snapshots visibly show the edges starting uniform and then differentiating
+and decaying as plasticity reshapes the graph.
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy

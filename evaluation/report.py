@@ -118,6 +118,30 @@ def load_run(run_dir: str | Path) -> tuple[np.ndarray, np.ndarray, np.ndarray | 
     return np.array(returns), np.array(steps), snapshots, agent_ids
 
 
+def load_metrics(run_dir: str | Path) -> dict[str, np.ndarray]:
+    """Load every column of a run's ``metrics.csv`` as a float array.
+
+    Non-numeric / missing cells become NaN, so downstream plotting can mask them.
+    Useful for per-training-step curves (reward, density, entropy, ...).
+    """
+    rows: list[dict[str, str]] = []
+    with (Path(run_dir) / "metrics.csv").open() as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = list(reader.fieldnames or [])
+        rows.extend(reader)
+
+    columns: dict[str, np.ndarray] = {}
+    for name in fieldnames:
+        values = []
+        for row in rows:
+            try:
+                values.append(float(row[name]))
+            except (TypeError, ValueError):
+                values.append(float("nan"))
+        columns[name] = np.array(values, dtype=float)
+    return columns
+
+
 def flatten_report(report: Mapping[str, Mapping[str, float]]) -> dict[str, float]:
     """Flatten a nested report to ``{"section.metric": value}`` (order preserved)."""
     flat: dict[str, float] = {}
@@ -156,6 +180,7 @@ __all__ = [
     "coordination_report",
     "evaluate_run",
     "load_run",
+    "load_metrics",
     "flatten_report",
     "format_comparison",
     "GRAPH_METRIC_NAMES",

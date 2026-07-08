@@ -26,8 +26,9 @@ ENV/
 htmlcov/
 .ipynb_checkpoints/
 
-# Experiment outputs (runs, checkpoints, logs, recorded rollouts)
+# Experiment outputs (runs, checkpoints, logs, recorded rollouts, figures)
 runs/
+results/
 outputs/
 checkpoints/
 wandb/
