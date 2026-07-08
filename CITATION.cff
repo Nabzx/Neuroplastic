@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Neuroplastic Collective Intelligence"
+abstract: >-
+  A research framework investigating whether neuroplastic communication
+  mechanisms inspired by computational neuroscience can improve emergent
+  coordination and functional specialisation in collective AI systems, via
+  adaptive graph-based communication and Hebbian-inspired plasticity.
+authors:
+  - family-names: Shah
+    given-names: Nabil
+type: software
+license: MIT
+repository-code: "https://github.com/Nabzx/Neuroplastic"
+keywords:
+  - multi-agent reinforcement learning
+  - emergent communication
+  - computational neuroscience
+  - Hebbian plasticity
+  - collective intelligence
+version: "0.1.0"
+date-released: "2026-07-08"

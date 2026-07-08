@@ -1,0 +1,9 @@
+# Ablation: plasticity is kept, but the interaction topology is frozen.
+# Isolates the contribution of *dynamic* topology (tests H2).
+extends: ../default.yaml
+
+name: nci_static_topology
+notes: "Ablation: Hebbian plasticity on a FIXED interaction graph."
+
+communication:
+  topology: static

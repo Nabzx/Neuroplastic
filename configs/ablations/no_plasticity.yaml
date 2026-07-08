@@ -1,0 +1,12 @@
+# Ablation: adaptive topology is kept, but plasticity is switched off.
+# Isolates the contribution of Hebbian-inspired plasticity (tests H1).
+extends: ../default.yaml
+
+name: nci_no_plasticity
+notes: "Ablation: adaptive communication WITHOUT Hebbian plasticity."
+
+plasticity:
+  enabled: false
+  rule: none
+  modulation: none
+  homeostasis: false

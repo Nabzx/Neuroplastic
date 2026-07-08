@@ -1,0 +1,80 @@
+# Default experiment configuration for Neuroplastic Collective Intelligence.
+#
+# This is the base config that ablations inherit from (via `extends:`).
+# Every key here is validated against configs/schema.py:ExperimentConfig.
+
+name: nci_default
+seed: 0
+device: auto            # auto | cpu | cuda
+output_dir: runs
+notes: "Base configuration: adaptive topology + Hebbian plasticity."
+
+env:
+  name: simple_spread   # cooperative MPE benchmark (see environments/registry.py)
+  num_agents: 3
+  max_cycles: 25
+  continuous_actions: false
+  kwargs: {}
+
+agent:
+  type: recurrent_policy
+  hidden_dim: 128
+  obs_embedding_dim: 64
+  recurrent: true
+  share_parameters: true
+
+communication:
+  enabled: true
+  message_dim: 16
+  topology: adaptive    # fully_connected | k_nearest | adaptive | static
+  protocol: attention   # mean | attention | gnn
+  max_neighbours: 4
+  num_rounds: 1
+  bandwidth: null
+
+plasticity:
+  enabled: true
+  rule: hebbian         # hebbian | oja | none
+  learning_rate: 0.001
+  decay: 0.0001
+  modulation: reward_gated   # none | reward_gated | three_factor
+  homeostasis: true
+  update_every: 1
+
+training:
+  algorithm: ippo
+  total_steps: 1000000
+  rollout_length: 128
+  num_envs: 8
+  lr: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  entropy_coef: 0.01
+  value_coef: 0.5
+  max_grad_norm: 0.5
+  minibatch_size: 256
+  update_epochs: 4
+  log_every: 1000
+  checkpoint_every: 50000
+
+evaluation:
+  episodes: 100
+  deterministic: true
+  graph_metrics:
+    - density
+    - modularity
+    - global_clustering
+    - characteristic_path_length
+    - degree_centralisation
+  information_metrics:
+    - message_entropy
+    - mutual_information
+    - transfer_entropy
+  coordination_metrics:
+    - episode_return
+    - success_rate
+    - coordination_index
+  specialisation_metrics:
+    - role_entropy
+    - role_cluster_count
+  log_topology_every: 1000

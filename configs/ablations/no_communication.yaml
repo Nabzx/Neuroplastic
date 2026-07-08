@@ -1,0 +1,13 @@
+# Ablation: independent learners with no inter-agent communication at all.
+# Lower-bound baseline for how much coordination is achievable without a channel.
+extends: ../default.yaml
+
+name: nci_no_communication
+notes: "Baseline: fully independent agents, no communication channel."
+
+communication:
+  enabled: false
+
+plasticity:
+  enabled: false
+  rule: none

@@ -1,0 +1,19 @@
+# Convenience requirements file. `pyproject.toml` is the source of truth;
+# prefer `pip install -e .` (core) or `pip install -e ".[rl,viz,analysis,dev]"`.
+#
+# This file lists the full experiment stack for a quick one-shot setup.
+
+# --- core (config + graph + metrics) ---
+numpy>=1.24
+networkx>=3.1
+pyyaml>=6.0
+
+# --- reinforcement-learning stack ---
+torch>=2.1
+pettingzoo[mpe]>=1.24
+gymnasium>=0.29
+
+# --- analysis + visualisation ---
+scipy>=1.11
+pandas>=2.0
+matplotlib>=3.7

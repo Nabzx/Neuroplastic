@@ -1,0 +1,102 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neuroplastic-collective-intelligence"
+version = "0.1.0"
+description = "Neuroplastic communication mechanisms for emergent coordination and functional specialisation in collective AI systems."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Nabil Shah" }]
+keywords = [
+    "multi-agent-reinforcement-learning",
+    "emergent-communication",
+    "computational-neuroscience",
+    "hebbian-plasticity",
+    "graph-neural-networks",
+    "collective-intelligence",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Development Status :: 2 - Pre-Alpha",
+]
+
+# Lightweight core dependencies: enough for config handling, graph
+# construction, and graph/information metric analysis without the heavy RL stack.
+dependencies = [
+    "numpy>=1.24",
+    "networkx>=3.1",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# The reinforcement-learning training stack (installed for actual experiments).
+rl = [
+    "torch>=2.1",
+    "pettingzoo[mpe]>=1.24",
+    "gymnasium>=0.29",
+]
+viz = ["matplotlib>=3.7"]
+analysis = ["scipy>=1.11", "pandas>=2.0"]
+dev = [
+    "pytest>=7.4",
+    "ruff>=0.4",
+    "black>=24.0",
+    "mypy>=1.8",
+    "types-PyYAML>=6.0",
+]
+all = [
+    "neuroplastic-collective-intelligence[rl,viz,analysis,dev]",
+]
+
+[project.urls]
+Repository = "https://github.com/Nabzx/Neuroplastic"
+
+[project.scripts]
+nci = "training.cli:main"
+
+[tool.setuptools]
+# Honour the requested flat, domain-oriented layout: each domain is a top-level
+# package. `core` (shared primitives) and `tests` support them.
+packages = [
+    "agents",
+    "environments",
+    "communication",
+    "plasticity",
+    "training",
+    "evaluation",
+    "analysis",
+    "visualisation",
+    "configs",
+    "core",
+]
+
+[tool.setuptools.package-data]
+configs = ["*.yaml", "ablations/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]  # line length handled by black
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true

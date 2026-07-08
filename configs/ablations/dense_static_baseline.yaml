@@ -1,0 +1,18 @@
+# Baseline: conventional fully-connected communication with no plasticity and
+# a fixed topology -- i.e. a standard "broadcast to everyone" MARL comms setup.
+# This is the reference point the neuroplastic model must beat.
+extends: ../default.yaml
+
+name: nci_dense_static_baseline
+notes: "Baseline: fully-connected static graph, mean-pooled messages, no plasticity."
+
+communication:
+  topology: fully_connected
+  protocol: mean
+  max_neighbours: 999
+
+plasticity:
+  enabled: false
+  rule: none
+  modulation: none
+  homeostasis: false
