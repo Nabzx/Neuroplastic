@@ -171,4 +171,98 @@ def generate_benchmark_figures(
     return saved
 
 
-__all__ = ["generate_benchmark_figures"]
+def _metric_vs_budget(ax, summary_by_budget, budgets, metric, ylabel, title) -> bool:
+    """Plot ``metric`` mean +/- 95% CI against training budget, one line per method."""
+    drawn = False
+    methods = _ordered(list(next(iter(summary_by_budget.values()), {})))
+    for method in methods:
+        xs, ys, lo, hi = [], [], [], []
+        for budget in budgets:
+            stats = summary_by_budget.get(str(budget), {}).get(method, {}).get(metric, {})
+            mean = stats.get("mean", float("nan"))
+            if mean != mean:
+                continue
+            xs.append(budget)
+            ys.append(mean)
+            lo.append(mean - stats.get("ci_low", mean))
+            hi.append(stats.get("ci_high", mean) - mean)
+        if xs:
+            ax.errorbar(xs, ys, yerr=[lo, hi], marker="o", capsize=4, linewidth=2, label=method)
+            drawn = True
+    ax.set_xlabel("training budget (env steps)")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.grid(alpha=0.3)
+    if drawn:
+        ax.legend(fontsize=8)
+    return drawn
+
+
+def generate_long_horizon_figures(
+    curves_by_budget: Mapping[str, Mapping[str, list]],
+    finals_by_budget: Mapping[str, Mapping[str, tuple]],
+    summary_by_budget: Mapping[str, Any],
+    budgets: Sequence[int],
+    output_dir: str | Path,
+    threshold: float = 1e-3,
+) -> list[Path]:
+    """Figures for the budget sweep: per-budget reward curves + metric-vs-budget trends."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    output = Path(output_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    saved: list[Path] = []
+
+    # per-budget reward curves with cross-seed CI
+    for budget in budgets:
+        fig, ax = plt.subplots(figsize=(7, 4.5))
+        if _ci_curves(ax, curves_by_budget.get(str(budget), {}), "episode_return_mean"):
+            ax.set_xlabel("environment steps")
+            ax.set_ylabel("episode return")
+            ax.set_title(f"Reward curves (mean +/- 95% CI) — {budget} steps")
+            ax.grid(alpha=0.3)
+            ax.legend(fontsize=8)
+            _save(fig, output / f"reward_curves_{budget}steps.png", saved)
+        else:
+            plt.close(fig)
+
+    # metric-vs-budget trend panels (does anything separate as budget grows?)
+    trends = [
+        ("coordination.final_reward", "final reward", "final_reward_vs_budget.png"),
+        ("coordination.convergence_steps", "steps to converge", "convergence_vs_budget.png"),
+        ("coordination.reward_variance", "reward variance", "reward_variance_vs_budget.png"),
+        ("graph.comm_weight_entropy", "communication entropy (bits)", "communication_entropy_vs_budget.png"),
+        ("graph.degree_heterogeneity", "degree heterogeneity", "graph_heterogeneity_vs_budget.png"),
+        ("stability.edge_weight_drift", "edge-weight drift", "edge_weight_stability_vs_budget.png"),
+        ("specialisation.role_diversity", "role diversity", "specialisation_vs_budget.png"),
+    ]
+    for metric, ylabel, filename in trends:
+        fig, ax = plt.subplots(figsize=(6.5, 4.2))
+        if _metric_vs_budget(ax, summary_by_budget, budgets, metric, ylabel, f"{ylabel} vs budget"):
+            _save(fig, output / filename, saved)
+        else:
+            plt.close(fig)
+
+    # final communication heatmaps at the longest budget
+    longest = str(max(budgets))
+    comm = [m for m in _ordered(list(finals_by_budget.get(longest, {}))) if finals_by_budget[longest].get(m)]
+    if comm:
+        matrices = [finals_by_budget[longest][m][0] for m in comm]
+        off = ~np.eye(matrices[0].shape[0], dtype=bool)
+        vmax = max((np.asarray(m)[off].max() for m in matrices), default=1.0) or 1.0
+        fig, axes = plt.subplots(1, len(comm), figsize=(4.4 * len(comm), 4.0), squeeze=False)
+        image = None
+        for ax, method in zip(axes[0], comm):
+            matrix, agents = finals_by_budget[longest][method]
+            _, image = plot_edge_weight_heatmap(matrix, agents, ax=ax, title=method, vmin=0.0, vmax=vmax)
+        fig.colorbar(image, ax=axes[0].tolist(), fraction=0.025, pad=0.02, label="edge weight")
+        fig.suptitle(f"Final communication heatmaps at {longest} steps")
+        _save(fig, output / f"communication_heatmaps_{longest}steps.png", saved)
+
+    return saved
+
+
+__all__ = ["generate_benchmark_figures", "generate_long_horizon_figures"]

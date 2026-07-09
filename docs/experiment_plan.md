@@ -193,3 +193,9 @@ interaction-graph snapshots and exchanged messages for post-hoc analysis
   `scripts/run_benchmark.py`). ✅ Results: [`docs/benchmark_results.md`](benchmark_results.md).
   *Caveat:* run at a small seed count / short budget — the study is a
   demonstration of the protocol, not a definitive result.
+- **M6 — Long-horizon check:** budget-only sweep (20k/100k/250k) on simple_spread
+  to test whether the M5 negative result was caused by too little training
+  (`scripts/run_long_horizon.py`). ✅ Result: it was not — neuroplastic stays
+  statistically indistinguishable from fixed/adaptive at every budget while its
+  graph differentiates far more (structure changes, reward does not).
+  [`docs/long_horizon_results.md`](long_horizon_results.md).

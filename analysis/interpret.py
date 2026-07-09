@@ -219,4 +219,143 @@ def generate_interpretation(
     return "\n".join(lines)
 
 
-__all__ = ["generate_interpretation"]
+def _budget_mean(summary_by_budget, budget, method, metric):
+    return summary_by_budget.get(str(budget), {}).get(method, {}).get(metric, {}).get("mean", float("nan"))
+
+
+def generate_long_horizon_interpretation(
+    summary_by_budget: Mapping[str, Any],
+    significance_by_budget: Mapping[str, Any],
+    meta: Mapping[str, Any],
+) -> str:
+    """Honest summary of the training-budget sweep on a single environment.
+
+    Directly answers: did more training time change the previous negative result?
+    Classifies into the four pre-registered outcomes and does not overstate.
+    """
+    budgets = sorted(int(b) for b in meta.get("budgets", []))
+    lines: list[str] = []
+    fr = "coordination.final_reward"
+
+    lines.append("# Long-Horizon Benchmark — Does More Training Change the Result?\n")
+    lines.append(
+        "**Research question:** neuroplasticity may give no short-term benefit but "
+        "could help at longer horizons. Only the training budget was changed "
+        "(20k / 100k / 250k env steps) on **simple_spread**, comparing fixed "
+        "fully-connected, adaptive and neuroplastic communication, "
+        f"**{meta.get('seeds', '?')} seeds** each. Algorithm, architecture, PPO "
+        "settings, plasticity coefficients and communication mechanisms are "
+        "unchanged. Higher return is better (rewards are negative).\n"
+    )
+    lines.append(
+        "> Still only a handful of seeds per cell — the permutation tests remain "
+        "low-powered; read trends, not single p-values.\n"
+    )
+
+    # -- per-budget table -------------------------------------------------
+    lines.append("## Final reward by budget\n")
+    lines.append("| budget | fixed | adaptive | neuroplastic | Δ(plastic−fixed) | p vs fixed | p vs adaptive |")
+    lines.append("|---|---|---|---|---|---|---|")
+    deltas_fixed: dict[int, float] = {}
+    sig_vs_fixed: list[int] = []
+    sig_vs_adaptive_worse: list[int] = []
+    for budget in budgets:
+        fx = _budget_mean(summary_by_budget, budget, "fully_connected", fr)
+        ad = _budget_mean(summary_by_budget, budget, "adaptive", fr)
+        npl = _budget_mean(summary_by_budget, budget, "neuroplastic", fr)
+        sig = significance_by_budget.get(str(budget), {})
+        p_fixed = sig.get("vs_fixed", {}).get(fr, {}).get("p_value", float("nan"))
+        p_adapt = sig.get("vs_adaptive", {}).get(fr, {}).get("p_value", float("nan"))
+        delta = npl - fx
+        deltas_fixed[budget] = delta
+        if p_fixed == p_fixed and p_fixed < _ALPHA and npl > fx:
+            sig_vs_fixed.append(budget)
+        if p_adapt == p_adapt and p_adapt < _ALPHA and ad > npl:
+            sig_vs_adaptive_worse.append(budget)
+        lines.append(
+            f"| {budget} | {_fmt(fx)} | {_fmt(ad)} | {_fmt(npl)} | {_fmt(delta)} | "
+            f"{_fmt(p_fixed)} | {_fmt(p_adapt)} |"
+        )
+    lines.append("")
+
+    # -- structural trend -------------------------------------------------
+    lines.append("## Does the communication graph change with budget?\n")
+    for budget in budgets:
+        lines.append(
+            f"- **{budget} steps** (neuroplastic): edge-weight drift "
+            f"{_fmt(_budget_mean(summary_by_budget, budget, 'neuroplastic', 'stability.edge_weight_drift'))}, "
+            f"degree heterogeneity "
+            f"{_fmt(_budget_mean(summary_by_budget, budget, 'neuroplastic', 'graph.degree_heterogeneity'))}, "
+            f"role diversity "
+            f"{_fmt(_budget_mean(summary_by_budget, budget, 'neuroplastic', 'specialisation.role_diversity'))}."
+        )
+    lines.append("")
+
+    # -- outcome classification ------------------------------------------
+    lines.append("## Outcome\n")
+    lo, hi = budgets[0], budgets[-1]
+    gap_grows = (
+        deltas_fixed.get(hi, float("nan")) == deltas_fixed.get(hi, float("nan"))
+        and deltas_fixed.get(lo, float("nan")) == deltas_fixed.get(lo, float("nan"))
+        and deltas_fixed[hi] > deltas_fixed[lo] + 0.5
+        and deltas_fixed[hi] > 0
+    )
+    drift_hi = _budget_mean(summary_by_budget, hi, "neuroplastic", "stability.edge_weight_drift")
+    structure_moves = drift_hi == drift_hi and drift_hi > 0
+
+    if sig_vs_fixed:
+        outcome = (
+            f"**Outcome 1 — separation at longer horizons.** Neuroplastic became "
+            f"significantly better than fixed at {', '.join(map(str, sig_vs_fixed))} "
+            "steps. Replicate with more seeds before trusting this."
+        )
+    elif sig_vs_adaptive_worse:
+        outcome = (
+            "**Outcome 4 — adaptive outperforms neuroplastic.** At least at the "
+            f"longest budget, adaptive attention beat neuroplastic significantly "
+            f"({', '.join(map(str, sig_vs_adaptive_worse))} steps)."
+        )
+    elif structure_moves:
+        outcome = (
+            "**Outcome 3 — graph structure changes, reward does not.** The plastic "
+            "graph keeps drifting/differentiating at every budget, but that never "
+            "converts into a statistically significant reward advantage over fixed "
+            "or adaptive communication."
+        )
+    else:
+        outcome = (
+            "**Outcome 2 — statistically indistinguishable.** No budget produced a "
+            "significant reward difference between neuroplastic and fixed/adaptive."
+        )
+    lines.append(outcome + "\n")
+
+    # -- direct answer ----------------------------------------------------
+    lines.append("## Was the earlier negative result caused by too little training?\n")
+    if sig_vs_fixed:
+        lines.append(
+            "Partly: extending the budget did surface a significant neuroplastic "
+            "advantage that was absent at 20k steps.\n"
+        )
+    else:
+        trend = "widened" if gap_grows else "did not grow in neuroplastic's favour"
+        lines.append(
+            f"**No.** Increasing the budget from {lo} to {hi} steps did not make "
+            "neuroplastic communication significantly better than fixed or adaptive; "
+            f"the reward gap {trend}. The earlier negative result was **not** merely "
+            "an artefact of short training — it persists at 12.5x the budget. "
+            "(Absence of significance with few seeds is still not proof of no "
+            "effect, but there is no positive trend to point to.)\n"
+        )
+
+    lines.append("## Limitations\n")
+    lines.append(
+        "- Single environment, one agent count (4); few seeds; no tuning. "
+        "- 250k steps is still modest for MARL. "
+        "- The plastic edge matrix is row-normalised, so its absolute magnitude "
+        "cannot change aggregation beyond re-weighting existing neighbours.\n"
+    )
+    lines.append("_Auto-generated; the numbers above are the ground truth, favourable or not._")
+    return "\n".join(lines)
+
+
+__all__ = ["generate_interpretation", "generate_long_horizon_interpretation"]

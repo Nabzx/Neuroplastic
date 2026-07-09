@@ -273,6 +273,18 @@ publication figures, and a deliberately **honest** `SUMMARY.md` interpretation
 (mixed/negative results are reported as such). The committed findings from one
 such run are in [`docs/benchmark_results.md`](docs/benchmark_results.md).
 
+A follow-up **long-horizon** sweep varies *only* the training budget
+(20k/100k/250k steps) to ask whether more training changes the negative result:
+
+```bash
+python scripts/run_long_horizon.py --seeds 5 --budgets 20000 100000 250000
+```
+
+Findings ([`docs/long_horizon_results.md`](docs/long_horizon_results.md)): it does
+not — neuroplastic communication remains statistically indistinguishable from
+fixed/adaptive at every budget even though its graph differentiates far more with
+training (structural change without a reward benefit).
+
 ## Tech stack
 
 Python · PyTorch · PettingZoo · NetworkX · NumPy
