@@ -9,15 +9,22 @@ from the study in `results/study/`; method and setup are final.*
 
 ## Abstract
 
-*(to be finalised from results)* Deep networks trained continually lose the
-ability to learn. We ask whether *biological* neuroplasticity mechanisms —
-homeostatic synaptic scaling and utility-gated structural plasticity (pruning +
-neurogenesis) — prevent this, and which failure mode each repairs. On a
-permuted-regression continual benchmark (10 seeds) we find that [KEY RESULT:
-homeostatic scaling retains the most plasticity, competitive with / exceeding
-Continual Backprop], and that structural and homeostatic mechanisms address
-*complementary* failure modes (dead units vs weight ill-conditioning), so their
-combination inherits both. [Honest caveats.]
+Deep networks trained continually lose the ability to learn. We ask whether
+*biological* neuroplasticity mechanisms — homeostatic synaptic scaling and
+utility-gated structural plasticity (pruning + neurogenesis) — prevent this, and
+which failure mode each repairs. On a permuted-regression continual benchmark
+(10 seeds), homeostatic synaptic scaling retains significantly more plasticity
+than a vanilla network (final per-task loss 0.58 vs 0.82; permutation
+p = 2×10⁻⁴) and, notably, **exceeds the state-of-the-art remedy Continual Backprop**
+(0.58 vs 0.71; p = 0.02); combining it with structural plasticity is best (0.55;
+p = 3×10⁻⁴ vs Continual Backprop). A mechanistic analysis shows *why*: structural
+plasticity and homeostatic scaling repair **complementary and near-orthogonal**
+failure modes — dead units (structural drives the dormant fraction to ≈0.02 and
+keeps effective rank high) versus weight ill-conditioning (homeostatic bounds
+weight growth and minimises loss) — so their combination inherits both. We report
+these results with explicit caveats: a single small synthetic benchmark, plain
+SGD, and an intriguing "improvement over time" (plasticity ratio < 1) that we
+flag for further scrutiny.
 
 ## 1. Introduction
 
@@ -100,11 +107,45 @@ Hypotheses, benchmarks, mechanisms, metrics and analysis were preregistered
 
 ## 5. Results
 
-*(filled from `results/study/`)*
+Vanilla SGD loses plasticity: its per-task late loss *rises* over the sequence
+(plasticity ratio 1.11), with the dormant fraction reaching 0.26 and effective
+rank falling to 10.9. Table 1 reports the final metrics (mean over 10 seeds) and
+permutation p-values against vanilla and against Continual Backprop (CBP).
 
-## 6. Mechanism attribution
+**Table 1.** Final per-task late loss (lower = more retained plasticity), plasticity
+ratio (final/early; <1 = improving), dormant fraction, effective rank; p-values vs
+vanilla and vs Continual Backprop.
 
-*(filled: which diagnostic each mechanism repairs)*
+| method | late loss | ratio | dormant | eff. rank | p vs vanilla | p vs CBP |
+|---|---|---|---|---|---|---|
+| vanilla | 0.817 | 1.11 | 0.264 | 10.9 | — | 6×10⁻⁴ |
+| L2 | 0.804 | 1.08 | 0.595 | 2.24 | 0.71 | 0.007 |
+| shrink-and-perturb | 0.702 | 0.97 | 0.388 | 3.58 | 0.016 | 0.92 |
+| ReDo | 0.765 | 1.04 | 0.024 | 20.0 | 0.045 | 0.042 |
+| Continual Backprop (SOTA) | 0.707 | 1.01 | 0.004 | 18.8 | 0.001 | — |
+| **homeostatic (ours)** | **0.584** | 0.80 | 0.185 | 8.2 | **2×10⁻⁴** | **0.021** |
+| **structural (ours)** | 0.715 | 1.01 | 0.021 | 17.7 | 0.001 | 0.77 |
+| **combined (ours)** | **0.549** | 0.80 | 0.047 | 9.1 | **1×10⁻⁴** | **3×10⁻⁴** |
+
+**H1 (preservation).** Homeostatic, structural and combined all significantly
+reduce late loss versus vanilla (p < 0.05). **H3 (competitiveness).** Homeostatic
+and combined *significantly exceed* Continual Backprop (p = 0.021, 3×10⁻⁴);
+structural matches it (p = 0.77). L2 is counter-productive (it shrinks weights,
+killing units: dormant 0.60, rank 2.2).
+
+## 6. Mechanism attribution (H2)
+
+Figure `mechanism_attribution.png` plots final dormant fraction against final late
+loss; the mechanisms separate along **two near-orthogonal axes**:
+
+- **Structural family** (structural, ReDo, Continual Backprop) drives the dormant
+  fraction to ≈0.02 and keeps effective rank high (≈18–20) — it repairs the
+  **dead-unit** failure mode — but leaves late loss at ≈0.71–0.77.
+- **Homeostatic scaling** does *not* reduce dormant units (0.185) yet attains the
+  lowest late loss (0.584); it bounds weight magnitude (final |w| 0.086 vs vanilla
+  0.119) — it repairs a **different, weight-conditioning** failure mode.
+- **Combined** sits at both low dormant fraction (0.047) and low late loss (0.549),
+  inheriting both repairs — direct support for H2's complementarity claim.
 
 ## 7. Limitations
 
@@ -118,7 +159,16 @@ a dedicated probe.
 
 ## 8. Conclusion
 
-*(filled from results)*
+Two lifelong-plasticity mechanisms from neuroscience — homeostatic synaptic
+scaling and structural pruning/neurogenesis — measurably mitigate loss of
+plasticity in continually-trained networks. On this benchmark a *simple*
+homeostatic rule not only prevents the phenomenon but **outperforms the
+state-of-the-art remedy**, and combining it with structural plasticity is best,
+because the two mechanisms fix complementary failure modes. We deliberately temper
+this: it is one small synthetic benchmark with plain SGD, and the observed
+plasticity *gain* over time deserves dedicated scrutiny. The natural next steps —
+Continual Permuted-MNIST, larger networks, adaptive optimisers, and metaplasticity —
+are what would turn this promising result into a robust claim.
 
 ## References
 

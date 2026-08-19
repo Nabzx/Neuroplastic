@@ -10,10 +10,29 @@ Biological brains stay plastic for life through **homeostatic** and **structural
 plasticity. This project replicates those mechanisms in artificial networks and
 asks, rigorously, whether — and *how* — they preserve plasticity.
 
-> **Status: Phase 1 complete.** Loss of plasticity is reproduced on a small,
-> CPU-friendly synthetic benchmark (Gate 1 ✅). The biological mechanisms and the
-> multi-seed study follow. See [`docs/preregistration.md`](docs/preregistration.md)
-> for the fixed hypotheses and protocol.
+> **Status: main study complete — a positive result.** Across 10 seeds,
+> biologically-inspired **homeostatic synaptic scaling** retains significantly more
+> plasticity than a vanilla network *and significantly exceeds the state-of-the-art
+> remedy* (Continual Backprop); **combining** it with structural plasticity is best.
+> Structural and homeostatic mechanisms repair complementary failure modes.
+> See [`docs/study_results.md`](docs/study_results.md) and the write-up in
+> [`docs/paper_draft.md`](docs/paper_draft.md); hypotheses were fixed in advance in
+> [`docs/preregistration.md`](docs/preregistration.md).
+
+## Headline result (10 seeds)
+
+| method | final per-task loss ↓ | vs vanilla | vs SOTA (Continual Backprop) |
+|---|---|---|---|
+| vanilla | 0.82 (loses plasticity) | — | — |
+| Continual Backprop (SOTA) | 0.71 | p=0.001 | — |
+| **homeostatic (ours)** | **0.58** | **p=2×10⁻⁴** | **p=0.02 (beats SOTA)** |
+| **combined (ours)** | **0.55** | **p=1×10⁻⁴** | **p=3×10⁻⁴ (beats SOTA)** |
+
+Reproduce the full study:
+
+```bash
+python scripts/run_study.py --seeds 10 --num-tasks 250 --output results/study
+```
 
 ## The phenomenon (reproduced)
 
