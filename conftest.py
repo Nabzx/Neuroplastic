@@ -1,9 +1,4 @@
-"""Ensure the repository root is importable when running tests without install.
-
-The domain packages are top-level (flat layout), so the repo root must be on
-``sys.path``. An editable install (`pip install -e .`) handles this too; this
-conftest makes `pytest` work straight from a fresh checkout as well.
-"""
+"""Make the repository root importable when running tests without an install."""
 
 import os
 import sys
