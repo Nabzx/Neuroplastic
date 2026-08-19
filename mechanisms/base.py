@@ -18,6 +18,11 @@ from core.registry import Registry
 MECHANISM_REGISTRY: Registry = Registry("mechanism")
 
 
+def linear_layers(model: nn.Module) -> list[nn.Linear]:
+    """All ``nn.Linear`` sub-modules of ``model`` (weights the mechanisms act on)."""
+    return [m for m in model.modules() if isinstance(m, nn.Linear)]
+
+
 class Mechanism:
     """Base class for plasticity mechanisms (default = no-op)."""
 

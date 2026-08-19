@@ -38,7 +38,10 @@ dev = ["pytest>=7.4", "ruff>=0.4", "black>=24.0"]
 Repository = "https://github.com/Nabzx/Neuroplastic"
 
 [tool.setuptools]
-packages = ["core", "data", "models", "diagnostics", "mechanisms", "training"]
+packages = [
+    "core", "data", "models", "diagnostics", "mechanisms",
+    "training", "analysis", "experiments", "visualisation",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
