@@ -37,9 +37,11 @@ wandb/
 *.pth
 *.log
 
-# Data
-data/
+# Downloaded datasets / caches (the `data/` package itself IS tracked source).
 datasets/
+*.gz
+*-ubyte
+**/_cache/
 
 # OS / editor
 .DS_Store
