@@ -38,6 +38,8 @@ class ContinualTrainer:
         stream: Any,
         optimizer: torch.optim.Optimizer,
         mechanism: PlasticityMechanism | None = None,
+        loss_fn: nn.Module | None = None,
+        metric_fn=None,
         device: str = "cpu",
         diag_tau: float = 0.1,
     ) -> None:
@@ -47,7 +49,8 @@ class ContinualTrainer:
         self.mechanism = mechanism
         self.device = device
         self.diag_tau = diag_tau
-        self.loss_fn = nn.MSELoss()
+        self.loss_fn = loss_fn or nn.MSELoss()
+        self.metric_fn = metric_fn                 # e.g. accuracy for classification
 
     def run(self) -> list[dict[str, float]]:
         """Train across the whole stream; return one metric record per task."""
@@ -57,13 +60,14 @@ class ContinualTrainer:
         history: list[dict[str, float]] = []
         current_task = -1
         losses: list[float] = []
+        metrics: list[float] = []
         examples_seen = 0
         step_index = 0
 
         for step in self.stream.steps():
             if step.boundary and current_task >= 0:
-                history.append(self._record(current_task, losses, examples_seen, probe))
-                losses = []
+                history.append(self._record(current_task, losses, metrics, examples_seen, probe))
+                losses, metrics = [], []
             current_task = step.task_id
 
             self.model.train()
@@ -83,25 +87,36 @@ class ContinualTrainer:
                 self.mechanism.after_optimizer_step(self.model, step_index)
 
             losses.append(float(loss.item()))
+            if self.metric_fn is not None:
+                metrics.append(float(self.metric_fn(pred.detach(), step.y)))
             examples_seen += step.x.shape[0]
             step_index += 1
 
         if losses:
-            history.append(self._record(current_task, losses, examples_seen, probe))
+            history.append(self._record(current_task, losses, metrics, examples_seen, probe))
         return history
 
     def _record(
-        self, task_id: int, losses: list[float], examples_seen: int, probe: torch.Tensor
+        self, task_id: int, losses: list[float], metrics: list[float], examples_seen: int, probe: torch.Tensor
     ) -> dict[str, float]:
         half = max(1, len(losses) // 2)
         diagnostics = representation_diagnostics(self.model, probe, tau=self.diag_tau)
-        return {
+        record = {
             "task": task_id,
             "examples_seen": examples_seen,
             "train_loss_mean": float(sum(losses) / len(losses)),
             "train_loss_late": float(sum(losses[half:]) / len(losses[half:])),
             **diagnostics,
         }
+        if metrics:
+            record["accuracy_late"] = float(sum(metrics[half:]) / len(metrics[half:]))
+        return record
 
 
-__all__ = ["ContinualTrainer", "PlasticityMechanism"]
+@torch.no_grad()
+def accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:
+    """Classification accuracy for ``[B, C]`` logits against ``[B]`` int targets."""
+    return float((logits.argmax(dim=-1) == targets).float().mean().item())
+
+
+__all__ = ["ContinualTrainer", "PlasticityMechanism", "accuracy"]

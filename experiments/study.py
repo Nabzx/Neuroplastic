@@ -11,15 +11,17 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 from analysis.statistics import permutation_test, summarise
 from core.seeding import set_global_seed
 from data.streams import PermutedRegressionStream
 from mechanisms.base import make_mechanism
 from models.mlp import MLP
-from training.continual import ContinualTrainer
+from training.continual import ContinualTrainer, accuracy
 
 DEFAULT_CONFIG: dict[str, Any] = {
+    "benchmark": "permuted_regression",
     "input_dim": 16,
     "teacher_hidden": 64,
     "num_tasks": 250,
@@ -33,16 +35,33 @@ METHODS = ["vanilla", "l2", "shrink_perturb", "redo", "continual_backprop", "hom
 PRIMARY_METRIC = "final_late_loss"
 
 
-def _run_one(method: str, seed: int, cfg: Mapping[str, Any]) -> list[dict[str, float]]:
-    set_global_seed(seed)
+def _build_run(cfg: Mapping[str, Any], seed: int):
+    """Construct ``(stream, model, loss_fn, metric_fn)`` for the configured benchmark."""
+    if cfg.get("benchmark") == "permuted_mnist":
+        from data.mnist import PermutedMNISTStream
+
+        stream = PermutedMNISTStream(
+            num_tasks=cfg["num_tasks"], task_length=cfg["task_length"],
+            batch_size=cfg["batch_size"], seed=seed,
+        )
+        model = MLP(784, cfg["hidden_dim"], output_dim=10, num_hidden_layers=cfg["layers"])
+        return stream, model, nn.CrossEntropyLoss(), accuracy
     stream = PermutedRegressionStream(
         input_dim=cfg["input_dim"], teacher_hidden=cfg["teacher_hidden"],
         num_tasks=cfg["num_tasks"], task_length=cfg["task_length"],
         batch_size=cfg["batch_size"], seed=seed,
     )
     model = MLP(cfg["input_dim"], cfg["hidden_dim"], num_hidden_layers=cfg["layers"])
+    return stream, model, nn.MSELoss(), None
+
+
+def _run_one(method: str, seed: int, cfg: Mapping[str, Any]) -> list[dict[str, float]]:
+    set_global_seed(seed)
+    stream, model, loss_fn, metric_fn = _build_run(cfg, seed)
     optimizer = torch.optim.SGD(model.parameters(), lr=cfg["lr"])
-    return ContinualTrainer(model, stream, optimizer, mechanism=make_mechanism(method)).run()
+    return ContinualTrainer(
+        model, stream, optimizer, mechanism=make_mechanism(method), loss_fn=loss_fn, metric_fn=metric_fn
+    ).run()
 
 
 def run_study(
@@ -68,7 +87,7 @@ def per_seed_scalars(history: Sequence[Mapping[str, float]], window: int = 25) -
     wmag = np.array([r["weight_magnitude"] for r in history], dtype=float)
     w = min(window, len(late))
     early, final = float(late[:w].mean()), float(late[-w:].mean())
-    return {
+    out = {
         "final_late_loss": final,
         "early_late_loss": early,
         "plasticity_ratio": final / max(1e-9, early),   # <1 = improves; >1 = loses plasticity
@@ -77,6 +96,11 @@ def per_seed_scalars(history: Sequence[Mapping[str, float]], window: int = 25) -
         "final_effective_rank": float(rank[-w:].mean()),
         "final_weight_magnitude": float(wmag[-w:].mean()),
     }
+    if "accuracy_late" in history[0]:                    # classification benchmarks
+        acc = np.array([r["accuracy_late"] for r in history], dtype=float)
+        out["final_accuracy"] = float(acc[-w:].mean())
+        out["early_accuracy"] = float(acc[:w].mean())
+    return out
 
 
 def aggregate_study(results: Mapping[str, list], window: int = 25) -> dict[str, dict[str, dict[str, float]]]:

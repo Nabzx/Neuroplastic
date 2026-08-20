@@ -40,9 +40,11 @@ def _write_csv(path: Path, rows: list[dict], fields: list[str]) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--benchmark", default="permuted_regression", choices=["permuted_regression", "permuted_mnist"])
     parser.add_argument("--seeds", type=int, default=8)
     parser.add_argument("--num-tasks", type=int, default=250)
     parser.add_argument("--task-length", type=int, default=200)
+    parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--hidden-dim", type=int, default=32)
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--window", type=int, default=25)
@@ -57,7 +59,10 @@ def main(argv=None) -> int:
     logger = get_logger("nci.study")
     methods = args.methods or METHODS
     seeds = list(range(args.seeds))
-    config = {"num_tasks": args.num_tasks, "task_length": args.task_length, "hidden_dim": args.hidden_dim, "lr": args.lr}
+    config = {
+        "benchmark": args.benchmark, "num_tasks": args.num_tasks, "task_length": args.task_length,
+        "batch_size": args.batch_size, "hidden_dim": args.hidden_dim, "lr": args.lr,
+    }
 
     bundle = run_study(methods, seeds, config, logger=logger)
     results = bundle["results"]
