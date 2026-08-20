@@ -68,7 +68,7 @@ def main(argv=None) -> int:
     results = bundle["results"]
     summary = aggregate_study(results, window=args.window)
     significance = significance_study(results, window=args.window)
-    meta = {"methods": methods, "seeds": args.seeds, "num_tasks": args.num_tasks, "config": bundle["config"]}
+    meta = {"methods": methods, "seeds": args.seeds, "num_tasks": args.num_tasks, "benchmark": args.benchmark, "config": bundle["config"]}
 
     out = Path(args.output)
     out.mkdir(parents=True, exist_ok=True)

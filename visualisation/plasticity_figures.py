@@ -78,6 +78,19 @@ def generate_study_figures(results: Mapping[str, list], summary: Mapping[str, An
     ax.grid(axis="y", alpha=0.3)
     _save(fig, out / "final_late_loss.png", saved)
 
+    # 2b. retained accuracy bars (classification benchmarks)
+    if any("final_accuracy" in summary[m] for m in methods):
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        acc = [summary[m].get("final_accuracy", {}).get("mean", float("nan")) for m in methods]
+        acc_err = [summary[m].get("final_accuracy", {}).get("std", float("nan")) for m in methods]
+        ax.bar(range(len(methods)), acc, yerr=acc_err, capsize=4, color=colors, alpha=0.85)
+        ax.set_xticks(range(len(methods)))
+        ax.set_xticklabels(methods, rotation=30, ha="right", fontsize=8)
+        ax.set_ylabel("final retained accuracy")
+        ax.set_title("Retained accuracy (higher is better; red = biological/ours)")
+        ax.grid(axis="y", alpha=0.3)
+        _save(fig, out / "final_accuracy.png", saved)
+
     # 3. mechanism attribution: dormant fraction vs late loss
     fig, ax = plt.subplots(figsize=(7, 5))
     for method in methods:

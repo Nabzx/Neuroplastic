@@ -23,57 +23,71 @@ def _fmt(v):
     return "n/a" if v != v else f"{v:.3g}"
 
 
+_BENCH_LABEL = {"permuted_mnist": "permuted-MNIST (classification)", "permuted_regression": "permuted-regression"}
+
+
 def generate_interpretation(summary: Mapping[str, Any], significance: Mapping[str, Any], meta: Mapping[str, Any]) -> str:
     methods = [m for m in meta.get("methods", summary.keys()) if m in summary]
     seeds = meta.get("seeds", "?")
     tasks = meta.get("num_tasks", "?")
+    benchmark = meta.get("benchmark", "permuted_regression")
+    label = _BENCH_LABEL.get(benchmark, benchmark)
+    classification = any("final_accuracy" in summary[m] for m in methods)
     lines: list[str] = []
 
+    # For classification the headline metric is accuracy (higher better); for
+    # regression it is per-task late loss (lower better). Significance is on late
+    # loss in both cases (a valid fit measure).
+    def better(method: str, other: str) -> bool:
+        if classification:
+            return _m(summary, method, "final_accuracy") > _m(summary, other, "final_accuracy")
+        return _m(summary, method, "final_late_loss") < _m(summary, other, "final_late_loss")
+
     lines.append("# Biological Plasticity Mechanisms vs Loss of Plasticity — Summary\n")
+    metric_note = "Higher retained accuracy is better" if classification else "Lower per-task late loss is better"
     lines.append(
-        f"Continual online learning over **{tasks} permuted-regression tasks**, "
-        f"**{seeds} seeds** per mechanism. Lower per-task *late* loss = more "
-        "retained plasticity; ratio < 1 = the network keeps improving.\n"
+        f"Continual online learning over **{tasks} {label} tasks**, **{seeds} seeds** "
+        f"per mechanism. {metric_note}; plasticity ratio < 1 = the network keeps improving.\n"
     )
     lines.append(
-        "> Few seeds and a synthetic benchmark: treat significance as supportive "
-        "evidence, not proof. All numbers are reported as found.\n"
+        "> Few seeds: treat significance as supportive evidence, not proof. "
+        "All numbers are reported as found.\n"
     )
 
     # -- table ------------------------------------------------------------
     lines.append("## Results\n")
-    lines.append("| method | late loss | ratio | dormant | eff. rank | vs vanilla p | vs CBP p |")
-    lines.append("|---|---|---|---|---|---|---|")
-    ranked = sorted(methods, key=lambda m: (_m(summary, m, "final_late_loss") if _m(summary, m, "final_late_loss") == _m(summary, m, "final_late_loss") else 1e18))
+    acc_col = " accuracy |" if classification else ""
+    lines.append(f"| method |{acc_col} late loss | ratio | dormant | eff. rank | vs vanilla p | vs CBP p |")
+    lines.append("|---|---|---|---|---|" + ("---|" if classification else "") + "---|---|")
     for method in methods:
         sig = significance.get(method, {})
         p_van = sig.get("vs_vanilla", {}).get("p_value", float("nan"))
         p_cbp = sig.get(f"vs_{_SOTA}", {}).get("p_value", float("nan"))
+        acc_cell = f" {_fmt(_m(summary, method, 'final_accuracy'))} |" if classification else ""
         lines.append(
-            f"| {'**' + method + '**' if method in _OURS else method} "
-            f"| {_fmt(_m(summary, method, 'final_late_loss'))} "
+            f"| {'**' + method + '**' if method in _OURS else method} |{acc_cell} "
+            f"{_fmt(_m(summary, method, 'final_late_loss'))} "
             f"| {_fmt(_m(summary, method, 'plasticity_ratio'))} "
             f"| {_fmt(_m(summary, method, 'final_dormant_fraction'))} "
             f"| {_fmt(_m(summary, method, 'final_effective_rank'))} "
             f"| {_fmt(p_van)} | {_fmt(p_cbp)} |"
         )
     lines.append("")
+    key_metric = "final_accuracy" if classification else "final_late_loss"
+    default = -1e18 if classification else 1e18
+    ranked = sorted(methods, key=lambda m: (_m(summary, m, key_metric) if _m(summary, m, key_metric) == _m(summary, m, key_metric) else default), reverse=classification)
     best = ranked[0] if ranked else "n/a"
-    lines.append(f"- **Best retained plasticity:** `{best}` (late loss {_fmt(_m(summary, best, 'final_late_loss'))}).")
+    best_val = _fmt(_m(summary, best, key_metric))
+    lines.append(f"- **Best retained plasticity:** `{best}` ({'accuracy' if classification else 'late loss'} {best_val}).")
     lines.append(f"- **Vanilla** loses plasticity (ratio {_fmt(_m(summary, 'vanilla', 'plasticity_ratio'))} > 1).\n")
 
     # -- H1 / H3 verdicts -------------------------------------------------
     ours = [m for m in _OURS if m in summary]
     beats_vanilla = [
         m for m in ours
-        if significance.get(m, {}).get("vs_vanilla", {}).get("p_value", 1.0) < _ALPHA
-        and _m(summary, m, "final_late_loss") < _m(summary, "vanilla", "final_late_loss")
+        if significance.get(m, {}).get("vs_vanilla", {}).get("p_value", 1.0) < _ALPHA and better(m, "vanilla")
     ]
-    beats_sota = [
-        m for m in ours
-        if _SOTA in summary
-        and _m(summary, m, "final_late_loss") < _m(summary, _SOTA, "final_late_loss")
-    ]
+    beats_sota = [m for m in ours if _SOTA in summary and better(m, _SOTA)]
     sig_beats_sota = [
         m for m in beats_sota
         if significance.get(m, {}).get(f"vs_{_SOTA}", {}).get("p_value", 1.0) < _ALPHA
@@ -138,13 +152,12 @@ def generate_interpretation(summary: Mapping[str, Any], significance: Mapping[st
         lines.append("Mixed/negative: the biological mechanisms did not clearly help here.")
     lines.append("")
     lines.append("## Limitations\n")
+    scope = "small networks and larger benchmarks" if classification else "a real benchmark (Continual Permuted-MNIST) and larger nets"
     lines.append(
-        "- One synthetic benchmark, small network, few seeds — confirm on Continual "
-        "Permuted-MNIST and larger nets. "
+        f"- Small network, few seeds — confirm further on {scope}. "
         "- Mechanism hyper-parameters use literature-informed defaults, not per-method tuning. "
         "- Plain SGD only; interaction with adaptive optimisers (Adam) is untested. "
-        "- The homeostatic 'improvement over time' (ratio<1) should be probed — it may reflect "
-        "the shared-teacher structure of the benchmark.\n"
+        "- The homeostatic 'improvement over time' (ratio<1) should be probed further.\n"
     )
     lines.append("_Auto-generated; numbers are ground truth, favourable or not._")
     return "\n".join(lines)

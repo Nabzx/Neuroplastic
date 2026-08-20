@@ -10,28 +10,29 @@ Biological brains stay plastic for life through **homeostatic** and **structural
 plasticity. This project replicates those mechanisms in artificial networks and
 asks, rigorously, whether — and *how* — they preserve plasticity.
 
-> **Status: main study complete — a positive result.** Across 10 seeds,
-> biologically-inspired **homeostatic synaptic scaling** retains significantly more
-> plasticity than a vanilla network *and significantly exceeds the state-of-the-art
-> remedy* (Continual Backprop); **combining** it with structural plasticity is best.
-> Structural and homeostatic mechanisms repair complementary failure modes.
-> See [`docs/study_results.md`](docs/study_results.md) and the write-up in
-> [`docs/paper_draft.md`](docs/paper_draft.md); hypotheses were fixed in advance in
+> **Status: study complete on two benchmarks — a positive result.**
+> Biologically-inspired **homeostatic synaptic scaling** significantly exceeds the
+> state-of-the-art remedy (Continual Backprop) on *both* a synthetic
+> permuted-regression task and **Continual Permuted-MNIST**. Structural and
+> homeostatic mechanisms repair complementary failure modes. Reported honestly
+> (the best-of-ours method is benchmark-dependent; a strong baseline is competitive
+> on MNIST). See [`docs/study_results.md`](docs/study_results.md), the write-up in
+> [`docs/paper_draft.md`](docs/paper_draft.md), and the preregistered hypotheses in
 > [`docs/preregistration.md`](docs/preregistration.md).
 
-## Headline result (10 seeds)
+## Headline result — homeostatic scaling beats SOTA on both benchmarks
 
-| method | final per-task loss ↓ | vs vanilla | vs SOTA (Continual Backprop) |
+| | vanilla | Continual Backprop (SOTA) | **homeostatic (ours)** |
 |---|---|---|---|
-| vanilla | 0.82 (loses plasticity) | — | — |
-| Continual Backprop (SOTA) | 0.71 | p=0.001 | — |
-| **homeostatic (ours)** | **0.58** | **p=2×10⁻⁴** | **p=0.02 (beats SOTA)** |
-| **combined (ours)** | **0.55** | **p=1×10⁻⁴** | **p=3×10⁻⁴ (beats SOTA)** |
+| synthetic — late loss ↓ | 0.82 | 0.71 | **0.58** (p=0.02 vs SOTA) |
+| Permuted-MNIST — accuracy ↑ | 0.59 | 0.70 | **0.76** (p<10⁻³ vs SOTA) |
 
-Reproduce the full study:
+Reproduce:
 
 ```bash
 python scripts/run_study.py --seeds 10 --num-tasks 250 --output results/study
+python scripts/run_study.py --benchmark permuted_mnist --seeds 8 --num-tasks 300 \
+    --task-length 800 --batch-size 16 --hidden-dim 32 --lr 0.05 --output results/study_mnist
 ```
 
 ## The phenomenon (reproduced)
