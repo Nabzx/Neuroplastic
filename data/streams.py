@@ -47,6 +47,11 @@ class PermutedRegressionStream:
         Online mini-batch size.
     seed:
         RNG seed (teacher weights, permutations and inputs are all derived from it).
+    shared_teacher:
+        If True (default) a single teacher is shared across tasks, so tasks share
+        structure. If False, each task draws a *fresh* teacher (independent tasks) --
+        used to probe whether an apparent "improvement over time" is genuine
+        plasticity or accumulation of shared structure.
     """
 
     def __init__(
@@ -58,24 +63,34 @@ class PermutedRegressionStream:
         batch_size: int = 1,
         seed: int = 0,
         device: str = "cpu",
+        shared_teacher: bool = True,
     ) -> None:
         self.input_dim = input_dim
         self.num_tasks = num_tasks
         self.task_length = task_length
         self.batch_size = batch_size
         self.device = device
+        self.shared_teacher = shared_teacher
         self._gen = torch.Generator(device="cpu").manual_seed(seed)
 
-        # Frozen teacher: sign-nonlinearity hidden layer (a linear-threshold unit
-        # network) + linear readout. Weights are fixed for the whole stream.
-        self._w1 = torch.randn(teacher_hidden, input_dim, generator=self._gen)
-        self._w2 = torch.randn(teacher_hidden, generator=self._gen)
-        # Per-task input permutations, precomputed for reproducibility.
+        # Frozen teacher(s): sign-nonlinearity hidden layer (linear-threshold units)
+        # + linear readout. One teacher (shared) or one per task (independent).
+        n_teachers = 1 if shared_teacher else num_tasks
+        self._w1 = [torch.randn(teacher_hidden, input_dim, generator=self._gen) for _ in range(n_teachers)]
+        self._w2 = [torch.randn(teacher_hidden, generator=self._gen) for _ in range(n_teachers)]
+        self._tidx = [0] * num_tasks if shared_teacher else list(range(num_tasks))
         self._perms = [torch.randperm(input_dim, generator=self._gen) for _ in range(num_tasks)]
 
-        # Normalise the target scale so MSE is comparable across settings.
-        probe = self._teacher(self._sample_inputs(2048), self._perms[0])
-        self._y_std = float(probe.std().clamp_min(1e-6))
+        # Normalise the target scale so MSE is comparable. Shared: one scale (the
+        # permutation does not change the distribution). Independent: per-task.
+        if shared_teacher:
+            probe = self._teacher(self._sample_inputs(2048), 0, self._perms[0])
+            self._y_std = [float(probe.std().clamp_min(1e-6))] * num_tasks
+        else:
+            self._y_std = [
+                float(self._teacher(self._sample_inputs(2048), t, self._perms[t]).std().clamp_min(1e-6))
+                for t in range(num_tasks)
+            ]
 
     # -- target ------------------------------------------------------------
     def _sample_inputs(self, n: int) -> torch.Tensor:
@@ -83,9 +98,10 @@ class PermutedRegressionStream:
         bits = torch.randint(0, 2, (n, self.input_dim), generator=self._gen)
         return bits.float() * 2.0 - 1.0
 
-    def _teacher(self, x: torch.Tensor, perm: torch.Tensor) -> torch.Tensor:
-        hidden = torch.sign(x[:, perm] @ self._w1.t())
-        return hidden @ self._w2
+    def _teacher(self, x: torch.Tensor, task_id: int, perm: torch.Tensor) -> torch.Tensor:
+        idx = self._tidx[task_id]
+        hidden = torch.sign(x[:, perm] @ self._w1[idx].t())
+        return hidden @ self._w2[idx]
 
     # -- iteration ---------------------------------------------------------
     def steps(self):
@@ -93,9 +109,10 @@ class PermutedRegressionStream:
         n_batches = max(1, self.task_length // self.batch_size)
         for task_id in range(self.num_tasks):
             perm = self._perms[task_id]
+            y_std = self._y_std[task_id]
             for b in range(n_batches):
                 x = self._sample_inputs(self.batch_size)
-                y = self._teacher(x, perm) / self._y_std
+                y = self._teacher(x, task_id, perm) / y_std
                 yield TaskStep(
                     x=x.to(self.device),
                     y=y.to(self.device),

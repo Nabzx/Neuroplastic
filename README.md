@@ -35,6 +35,13 @@ python scripts/run_study.py --benchmark permuted_mnist --seeds 8 --num-tasks 300
     --task-length 800 --batch-size 16 --hidden-dim 32 --lr 0.05 --output results/study_mnist
 ```
 
+**Robustness analyses** (implemented; see [`docs/preregistration.md`](docs/preregistration.md) amendment):
+
+```bash
+python scripts/probe_plasticity_gain.py   # A1: is the plasticity gain genuine or shared-structure?
+python scripts/run_robustness.py          # A2: does the win survive Adam and larger nets?
+```
+
 ## The phenomenon (reproduced)
 
 Vanilla SGD over 300 permuted-regression tasks measurably loses plasticity —

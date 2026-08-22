@@ -30,6 +30,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "hidden_dim": 32,
     "layers": 2,
     "lr": 0.01,
+    "optimizer": "sgd",          # sgd | adam  (robustness: Continual Backprop's edge grows with Adam)
+    "shared_teacher": True,      # False => independent teacher per task (probes the ratio<1 anomaly)
 }
 METHODS = ["vanilla", "l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined"]
 PRIMARY_METRIC = "final_late_loss"
@@ -50,15 +52,22 @@ def _build_run(cfg: Mapping[str, Any], seed: int):
         input_dim=cfg["input_dim"], teacher_hidden=cfg["teacher_hidden"],
         num_tasks=cfg["num_tasks"], task_length=cfg["task_length"],
         batch_size=cfg["batch_size"], seed=seed,
+        shared_teacher=cfg.get("shared_teacher", True),
     )
     model = MLP(cfg["input_dim"], cfg["hidden_dim"], num_hidden_layers=cfg["layers"])
     return stream, model, nn.MSELoss(), None
 
 
+def _build_optimizer(model: nn.Module, cfg: Mapping[str, Any]) -> torch.optim.Optimizer:
+    if str(cfg.get("optimizer", "sgd")).lower() == "adam":
+        return torch.optim.Adam(model.parameters(), lr=cfg["lr"])
+    return torch.optim.SGD(model.parameters(), lr=cfg["lr"])
+
+
 def _run_one(method: str, seed: int, cfg: Mapping[str, Any]) -> list[dict[str, float]]:
     set_global_seed(seed)
     stream, model, loss_fn, metric_fn = _build_run(cfg, seed)
-    optimizer = torch.optim.SGD(model.parameters(), lr=cfg["lr"])
+    optimizer = _build_optimizer(model, cfg)
     return ContinualTrainer(
         model, stream, optimizer, mechanism=make_mechanism(method), loss_fn=loss_fn, metric_fn=metric_fn
     ).run()

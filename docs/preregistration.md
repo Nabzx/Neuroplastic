@@ -69,3 +69,17 @@ mechanistic study — *which failure mode each mechanism repairs*.
 - If H2 holds: the diagnostic each mechanism targets improves selectively.
 - If they fail: mechanisms do not beat vanilla / Continual Backprop — reported as
   a negative result with analysis of why.
+
+## Amendment (added after the main study, before running these)
+
+Two robustness analyses, motivated by the main result and specified here before
+being run:
+
+- **A1 — plasticity-gain probe** (`scripts/probe_plasticity_gain.py`): re-run on an
+  *independent-teacher* stream (fresh teacher per task). Prediction: if homeostatic's
+  ratio < 1 is genuine plasticity it persists; if it was shared-structure
+  accumulation the ratio rises toward 1. Either outcome is reported.
+- **A2 — optimiser/scale robustness** (`scripts/run_robustness.py`): sweep optimiser
+  (SGD/Adam) × network width. Prediction to test: homeostatic scaling continues to
+  exceed Continual Backprop; if the advantage vanishes under Adam or at scale, that
+  is reported.

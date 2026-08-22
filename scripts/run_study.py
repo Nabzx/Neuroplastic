@@ -46,7 +46,11 @@ def main(argv=None) -> int:
     parser.add_argument("--task-length", type=int, default=200)
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--hidden-dim", type=int, default=32)
+    parser.add_argument("--layers", type=int, default=2)
     parser.add_argument("--lr", type=float, default=0.01)
+    parser.add_argument("--optimizer", default="sgd", choices=["sgd", "adam"])
+    parser.add_argument("--independent-teachers", action="store_true",
+                        help="fresh teacher per task (regression only) -- probes the ratio<1 anomaly")
     parser.add_argument("--window", type=int, default=25)
     parser.add_argument("--methods", nargs="+", default=None)
     parser.add_argument("--output", default="results/study")
@@ -61,13 +65,16 @@ def main(argv=None) -> int:
     seeds = list(range(args.seeds))
     config = {
         "benchmark": args.benchmark, "num_tasks": args.num_tasks, "task_length": args.task_length,
-        "batch_size": args.batch_size, "hidden_dim": args.hidden_dim, "lr": args.lr,
+        "batch_size": args.batch_size, "hidden_dim": args.hidden_dim, "layers": args.layers,
+        "lr": args.lr, "optimizer": args.optimizer, "shared_teacher": not args.independent_teachers,
     }
 
     bundle = run_study(methods, seeds, config, logger=logger)
     results = bundle["results"]
     summary = aggregate_study(results, window=args.window)
-    significance = significance_study(results, window=args.window)
+    # Significance on the headline metric: accuracy for classification, else late loss.
+    primary = "final_accuracy" if any("final_accuracy" in summary[m] for m in methods) else "final_late_loss"
+    significance = significance_study(results, window=args.window, metric=primary)
     meta = {"methods": methods, "seeds": args.seeds, "num_tasks": args.num_tasks, "benchmark": args.benchmark, "config": bundle["config"]}
 
     out = Path(args.output)

@@ -47,19 +47,29 @@ not help.
 
 ## 2. Related work
 
-**Loss of plasticity.** Dohare et al. (2024) document the phenomenon and propose
-Continual Backprop (continual utility-based unit reinitialisation). Lyle et al.
-(2023) analyse its causes (feature-rank collapse, dormant units, curvature);
-Sokar et al. (2023) identify the dormant-neuron phenomenon and propose ReDo
-(recycling dormant units); Nikishin et al. (2022) study the primacy bias and
-resets; Ash & Adams (2020) propose shrink-and-perturb for warm-starting.
+**Loss of plasticity.** Dohare et al. (2024) establish loss of plasticity as a
+general phenomenon in deep continual learning and propose *Continual Backprop*,
+which continually re-initialises low-utility units and largely maintains
+plasticity; we treat it as the state-of-the-art remedy. Lyle et al. (2023)
+disentangle its causes — collapsing feature rank, dormant units, growing weight
+norm and curvature — and motivate our diagnostic suite. Sokar et al. (2023)
+isolate the dormant-neuron phenomenon in deep RL and propose *ReDo*, which
+periodically recycles dormant units; Abbas et al. (2023) document the same loss in
+continual RL; Nikishin et al. (2022) study the primacy bias and full resets. Ash &
+Adams (2020) propose *shrink-and-perturb* (shrink weights, add noise) for
+warm-starting — a strong baseline we include. These remedies are typically
+motivated algorithmically rather than as biological plasticity.
 
-**Biological plasticity.** Homeostatic synaptic scaling (Turrigiano) keeps a
-neuron's activity in range by multiplicatively rescaling its inputs. Structural
-plasticity (pruning + neurogenesis) remodels connectivity. Both are lifelong
-mechanisms; their artificial analogues (weight normalisation, unit
-reinitialisation) exist in ML but are rarely framed or compared *as* biological
-plasticity for the loss-of-plasticity problem, which is our angle.
+**Biological plasticity.** Homeostatic synaptic scaling (Turrigiano 2008)
+multiplicatively rescales a neuron's inputs to keep its activity within an
+operating range — the inspiration for our weight-set-point rule. Structural
+plasticity (synaptic pruning and neurogenesis) remodels connectivity throughout
+life, and metaplasticity (Abraham & Bear 1996) modulates how plastic each synapse
+is. Their artificial analogues (weight normalisation, unit reinitialisation,
+per-parameter learning-rate modulation) exist piecemeal in ML, but are rarely
+framed, isolated, or compared *as biological mechanisms* for the loss-of-plasticity
+problem — which is our contribution, together with the mechanistic attribution of
+each to a specific failure mode.
 
 ## 3. Method
 
@@ -179,7 +189,28 @@ loss; the mechanisms separate along **two near-orthogonal axes**:
 - **Combined** sits at both low dormant fraction (0.047) and low late loss (0.549),
   inheriting both repairs — direct support for H2's complementarity claim.
 
-## 7. Limitations
+## 7. Robustness analyses (design; results pending)
+
+Two analyses are implemented as preregistered follow-ups to harden the claim;
+their results are pending compute and will be added.
+
+**A1 — is the plasticity *gain* genuine? (`scripts/probe_plasticity_gain.py`)**
+Homeostatic scaling's plasticity ratio < 1 (loss *falls* over the sequence) could
+reflect genuine retained plasticity, or mere accumulation of the structure shared
+across tasks (one teacher; the same MNIST images). We disentangle by re-running on
+an *independent-teacher* stream — a fresh random teacher per task, so there is no
+shared structure to accumulate. If the ratio stays < 1 the gain is genuine; if it
+rises toward 1 the apparent gain was shared-structure accumulation — reported
+either way.
+
+**A2 — does the advantage survive Adam and larger networks?
+(`scripts/run_robustness.py`)** Continual Backprop's edge is strongest with
+adaptive optimisers (momentum accumulation into dormant units) and at scale. We
+sweep optimiser (SGD / Adam) × network width and re-test whether homeostatic
+scaling still exceeds it. This is the key check separating a promising toy result
+from a robust one.
+
+## 8. Limitations
 
 One synthetic benchmark and a small network; results should be confirmed on
 Continual Permuted-MNIST and larger models. Few seeds keep the significance tests
@@ -189,7 +220,7 @@ optimisers are untested. Any observed *improvement over time* (plasticity ratio
 < 1) may partly reflect the shared-teacher structure of the benchmark and warrants
 a dedicated probe.
 
-## 8. Conclusion
+## 9. Conclusion
 
 Two lifelong-plasticity mechanisms from neuroscience — homeostatic synaptic
 scaling and structural pruning/neurogenesis — measurably mitigate loss of
@@ -204,6 +235,14 @@ adaptive optimisers, and metaplasticity — would further harden the claim.
 
 ## References
 
-Abbreviated; to be expanded. Dohare et al. 2024 (*Nature*); Lyle et al. 2023;
-Sokar et al. 2023; Nikishin et al. 2022; Ash & Adams 2020; Turrigiano 2008;
-Abraham & Bear 1996.
+BibTeX in [`references.bib`](references.bib).
+
+- Dohare, Hernandez-Garcia, Lan, Rahman, Mahmood & Sutton (2024). *Loss of plasticity in deep continual learning.* Nature 632:768–774.
+- Lyle, Zheng, Nikishin, Pires, Pascanu & Dabney (2023). *Understanding plasticity in neural networks.* ICML.
+- Sokar, Agarwal, Castro & Evci (2023). *The dormant neuron phenomenon in deep reinforcement learning.* ICML.
+- Abbas, Zhao, Modayil, White & Machado (2023). *Loss of plasticity in continual deep reinforcement learning.* CoLLAs.
+- Nikishin, Schwarzer, D'Oro, Bacon & Courville (2022). *The primacy bias in deep reinforcement learning.* ICML.
+- Ash & Adams (2020). *On warm-starting neural network training.* NeurIPS.
+- Turrigiano (2008). *The self-tuning neuron: synaptic scaling of excitatory synapses.* Cell 135(3):422–435.
+- Abraham & Bear (1996). *Metaplasticity: the plasticity of synaptic plasticity.* Trends in Neurosciences 19(4):126–130.
+- Roy & Vetterli (2007). *The effective rank: a measure of effective dimensionality.* EUSIPCO.
