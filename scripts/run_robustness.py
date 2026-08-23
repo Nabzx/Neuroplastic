@@ -27,6 +27,7 @@ def main(argv=None) -> int:
     parser.add_argument("--num-tasks", type=int, default=250)
     parser.add_argument("--optimizers", nargs="+", default=["sgd", "adam"])
     parser.add_argument("--hidden-dims", type=int, nargs="+", default=[32, 128])
+    parser.add_argument("--methods", nargs="+", default=None, help="subset of methods for each study")
     parser.add_argument("--output", default="results/robustness")
     parser.add_argument("--extra", nargs=argparse.REMAINDER, default=[],
                         help="extra args forwarded verbatim to run_study.py (e.g. --lr 0.05 --batch-size 16)")
@@ -41,8 +42,11 @@ def main(argv=None) -> int:
             sys.executable, str(ROOT / "scripts" / "run_study.py"),
             "--benchmark", args.benchmark, "--seeds", str(args.seeds),
             "--num-tasks", str(args.num_tasks), "--optimizer", optimizer,
-            "--hidden-dim", str(hidden), "--output", str(sub), *args.extra,
+            "--hidden-dim", str(hidden), "--output", str(sub),
         ]
+        if args.methods:
+            cmd += ["--methods", *args.methods]
+        cmd += list(args.extra)
         print("RUN:", " ".join(cmd))
         subprocess.run(cmd, check=False)
     print(f"\nSweep complete -> {out}/ (one study per optimiser x hidden-dim).")
