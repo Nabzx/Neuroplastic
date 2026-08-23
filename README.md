@@ -35,15 +35,17 @@ python scripts/run_study.py --benchmark permuted_mnist --seeds 8 --num-tasks 300
     --task-length 800 --batch-size 16 --hidden-dim 32 --lr 0.05 --output results/study_mnist
 ```
 
-**Robustness analyses** (implemented; see [`docs/preregistration.md`](docs/preregistration.md) amendment):
+**Robustness analyses** — results in [`docs/robustness_results.md`](docs/robustness_results.md):
+**A1** the plasticity gain is *genuine* (it survives independent per-task teachers);
+**A2** robust under Adam (where the SOTA degrades) but not at a larger network under
+plain SGD; **A3** insensitive to the homeostatic rate (beats SOTA at 5/5 settings).
+Statistics use Cohen's d effect sizes and Holm-Bonferroni-corrected p-values (A4).
 
 ```bash
-python scripts/probe_plasticity_gain.py   # A1: is the plasticity gain genuine or shared-structure?
-python scripts/run_robustness.py          # A2: does the win survive Adam and larger nets?
+python scripts/probe_plasticity_gain.py   # A1
+python scripts/run_robustness.py          # A2
 python scripts/run_sensitivity.py --method homeostatic --param rate --values 0.02 0.05 0.1 0.2 0.4  # A3
 ```
-
-Statistics report Cohen's d effect sizes and Holm-Bonferroni-corrected p-values (A4).
 
 ## The phenomenon (reproduced)
 

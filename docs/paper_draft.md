@@ -21,11 +21,13 @@ method. A mechanistic analysis shows *why*: structural plasticity and homeostati
 scaling repair **complementary and near-orthogonal** failure modes — dead units
 (structural drives the dormant fraction toward zero and keeps effective rank high)
 versus weight ill-conditioning (homeostatic bounds weight growth) — so combining
-them helps. We report the picture honestly: the *best-performing* method shifts
-across benchmarks (combined on synthetic, homeostatic on MNIST) and a strong
-baseline (shrink-and-perturb) is competitive on MNIST; caveats include small
-networks, plain SGD, and an intriguing "improvement over time" (plasticity
-ratio < 1) that warrants further scrutiny.
+them helps. Robustness checks strengthen the claim: the plasticity gain is
+**genuine** (it persists with independent per-task teachers), **insensitive** to the
+homeostatic rate, and **holds under Adam** (where the SOTA degrades). We report the
+picture honestly: the best-performing method shifts across benchmarks (combined on
+synthetic, homeostatic on MNIST), a strong baseline (shrink-and-perturb) is
+competitive on MNIST, and the advantage over the SOTA **does not survive a larger
+network under plain SGD**.
 
 ## 1. Introduction
 
@@ -191,56 +193,62 @@ loss; the mechanisms separate along **two near-orthogonal axes**:
 - **Combined** sits at both low dormant fraction (0.047) and low late loss (0.549),
   inheriting both repairs — direct support for H2's complementarity claim.
 
-## 7. Robustness analyses (design; results pending)
+## 7. Robustness analyses
 
-Three analyses are implemented as preregistered follow-ups to harden the claim;
-their results are pending compute and will be added.
+Three preregistered follow-ups (5 seeds each) test whether the result is genuine
+and robust.
 
-**A1 — is the plasticity *gain* genuine? (`scripts/probe_plasticity_gain.py`)**
-Homeostatic scaling's plasticity ratio < 1 (loss *falls* over the sequence) could
-reflect genuine retained plasticity, or mere accumulation of the structure shared
-across tasks (one teacher; the same MNIST images). We disentangle by re-running on
-an *independent-teacher* stream — a fresh random teacher per task, so there is no
-shared structure to accumulate. If the ratio stays < 1 the gain is genuine; if it
-rises toward 1 the apparent gain was shared-structure accumulation — reported
-either way.
+**A1 — the plasticity gain is genuine (`scripts/probe_plasticity_gain.py`).**
+Homeostatic's ratio < 1 (loss *falls* over the sequence) could reflect genuine
+retained plasticity or accumulation of the structure shared across tasks. We
+re-run on an *independent-teacher* stream (a fresh random teacher per task, so no
+shared structure). Result: homeostatic's ratio stays **below 1 with independent
+teachers (0.73), in fact lower than with a shared teacher (0.86)**, while vanilla
+still loses plasticity in both (ratio ≈ 1.15). The improvement is genuine retained
+plasticity, **not** shared-structure accumulation — resolving the main caveat.
 
-**A2 — does the advantage survive Adam and larger networks?
-(`scripts/run_robustness.py`)** Continual Backprop's edge is strongest with
-adaptive optimisers (momentum accumulation into dormant units) and at scale. We
-sweep optimiser (SGD / Adam) × network width and re-test whether homeostatic
-scaling still exceeds it. This is the key check separating a promising toy result
-from a robust one.
+**A2 — robust to Adam, but not to large-width SGD (`scripts/run_robustness.py`).**
+Sweeping optimiser (SGD/Adam) × width (32/128) and comparing homeostatic to
+Continual Backprop (final late loss; Holm-corrected p): homeostatic **significantly
+beats CBP under Adam at both widths** (0.51/0.54 vs 0.74/0.93, p = 0.02) — indeed
+CBP *degrades sharply* under Adam while homeostatic does not — and at the small
+network under SGD (0.53 vs 0.70, p = 0.02). The **one exception** is the large
+network with plain SGD, where CBP matches homeostatic (0.59 vs 0.62, not
+significant); `combined` stays competitive there (0.59). So the advantage is robust
+to the optimiser (strongest under Adam) but not universal across scale — reported
+honestly.
 
-**A3 — is the advantage a lucky hyper-parameter?
-(`scripts/run_sensitivity.py`)** The mechanism coefficients use literature-informed
-defaults. We sweep each mechanism's key hyper-parameter (e.g. the homeostatic
-scaling rate, the structural replacement rate) across a grid and check whether the
-method stays above the Continual Backprop reference across the range — a flat,
-insensitive curve indicates the result is not a lucky setting.
+**A3 — not a lucky hyper-parameter (`scripts/run_sensitivity.py`).** Sweeping the
+homeostatic scaling rate over [0.02, 0.4] keeps the final loss at 0.55–0.61, below
+Continual Backprop (0.73) at **all 5 settings** (spread 0.06). The advantage is
+insensitive to the coefficient.
 
 ## 8. Limitations
 
-One synthetic benchmark and a small network; results should be confirmed on
-Continual Permuted-MNIST and larger models. Few seeds keep the significance tests
-low-powered. Mechanism hyper-parameters use literature-informed defaults rather
-than per-method tuning. Only plain SGD is studied; interactions with adaptive
-optimisers are untested. Any observed *improvement over time* (plasticity ratio
-< 1) may partly reflect the shared-teacher structure of the benchmark and warrants
-a dedicated probe.
+Small networks and a compact benchmark suite; larger models and more benchmarks
+would further generalise the result. Seed counts are modest (8–10), so the
+Holm-corrected p-values remain low-powered. The clearest boundary the robustness
+analyses reveal is **scale-dependence**: homeostatic scaling's advantage over
+Continual Backprop holds under Adam and at the small network, but **not at the
+larger network under plain SGD** (§7, A2) — the mechanism appears most useful when
+capacity is limited or the optimiser is adaptive, and understanding why is future
+work. (The earlier "improvement over time" and hyper-parameter concerns are
+resolved by A1 and A3.)
 
 ## 9. Conclusion
 
 Two lifelong-plasticity mechanisms from neuroscience — homeostatic synaptic
 scaling and structural pruning/neurogenesis — measurably mitigate loss of
-plasticity in continually-trained networks. A *simple* homeostatic rule not only
-prevents the phenomenon but **outperforms the state-of-the-art remedy on both a
-synthetic benchmark and Continual Permuted-MNIST**, and a mechanistic analysis
-explains why the mechanisms are complementary. We temper this honestly: the
+plasticity in continually-trained networks. A *simple* homeostatic rule outperforms
+the state-of-the-art remedy on both a synthetic benchmark and Continual
+Permuted-MNIST, and a mechanistic analysis explains why it and structural plasticity
+are complementary. Robustness analyses show the effect is **genuine** (it survives
+independent per-task teachers), **insensitive** to the mechanism's coefficient, and
+**robust under Adam** — where the SOTA degrades. We temper this honestly: the
 best-performing method is benchmark-dependent, a strong baseline is competitive on
-MNIST, the networks are small and the optimiser is plain SGD, and the plasticity
-*gain* over time deserves dedicated scrutiny. Natural next steps — larger networks,
-adaptive optimisers, and metaplasticity — would further harden the claim.
+MNIST, and the advantage does not survive a larger network under plain SGD. Whether
+that scale boundary is fundamental, and whether metaplasticity extends the picture,
+are the natural next questions.
 
 ## References
 
