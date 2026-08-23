@@ -88,3 +88,32 @@ before being run:
   Continual Backprop is stable across a broad range (not a tuned point).
 - **A4 — statistical rigor**: report Cohen's d effect sizes and Holm-Bonferroni
   corrected p-values (family-wise error control), and run MNIST at >= 10 seeds.
+
+## Amendment — metaplasticity follow-on (registered before running)
+
+The third biological mechanism, **metaplasticity** (Abraham & Bear; BCM sliding
+threshold), as a *smooth, per-synapse* alternative to the discrete unit resets of
+Continual Backprop / ReDo. Design is fixed in [`metaplasticity_plan.md`](metaplasticity_plan.md)
+and implemented (`mechanisms/metaplasticity.py`); the mechanism modulates each unit's
+*effective learning rate* by its activity history — boosting under-active units,
+damping hyper-active ones — via rescaling the realised update (exact per-unit LR for
+any optimiser). Same benchmarks, metrics, seeds and statistics as the main study.
+Directional predictions, fixed here before any run; all outcomes reported:
+
+- **HM1 — maintenance.** `metaplastic` preserves plasticity vs vanilla (lower final
+  late loss / higher accuracy), significantly.
+- **HM2 — attribution.** It works by *reawakening units*: lower dormant fraction and
+  higher effective rank than vanilla — the smooth analog of structural neurogenesis,
+  with no discrete resets.
+- **HM3 — competitiveness.** It matches or beats the discrete SOTA (Continual
+  Backprop) and our own structural mechanism.
+- **HM4 — synergy.** `metaplastic_homeostatic` >= homeostatic alone (activity-gated
+  learning rates and set-point rescaling target different failure modes).
+- **HM5 — direction matters (negative control).** The forgetting-oriented
+  `metaplastic_consolidation` (which *lowers* plasticity of settled weights) does
+  **not** help — and may hurt — loss of plasticity. Confirming HM5 shows the benefit
+  is specifically the *reawakening* direction, not metaplastic bookkeeping per se.
+
+Falsifiable: if HM3 fails, smooth reawakening does not match discrete resets on some
+configs (as homeostatic did not beat CBP on the large SGD net in A2) — reported
+honestly. If HM5's foil *helps*, the direction hypothesis is wrong.

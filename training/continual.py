@@ -26,6 +26,7 @@ class PlasticityMechanism(Protocol):
     requires_activations: bool
 
     def observe(self, activations: list[torch.Tensor]) -> None: ...
+    def before_optimizer_step(self, model: nn.Module, step_index: int) -> None: ...
     def after_optimizer_step(self, model: nn.Module, step_index: int) -> None: ...
 
 
@@ -79,6 +80,8 @@ class ContinualTrainer:
 
             self.optimizer.zero_grad()
             loss.backward()
+            if self.mechanism is not None:
+                self.mechanism.before_optimizer_step(self.model, step_index)
             self.optimizer.step()
 
             if self.mechanism is not None:

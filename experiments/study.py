@@ -34,7 +34,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "shared_teacher": True,      # False => independent teacher per task (probes the ratio<1 anomaly)
     "mechanism_config": None,    # hyper-parameter overrides for the mechanism (sensitivity analysis)
 }
-METHODS = ["vanilla", "l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined"]
+METHODS = ["vanilla", "l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined", "metaplastic"]
 PRIMARY_METRIC = "final_late_loss"
 
 

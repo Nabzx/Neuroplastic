@@ -13,7 +13,8 @@ from mechanisms.biological import HomeostaticScaling, StructuralPlasticity  # no
 from models.mlp import MLP  # noqa: E402
 from training.continual import ContinualTrainer  # noqa: E402
 
-ALL = ["l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined"]
+ALL = ["l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined",
+       "metaplastic", "metaplastic_consolidation", "metaplastic_homeostatic"]
 
 
 def test_make_mechanism_all_registered():

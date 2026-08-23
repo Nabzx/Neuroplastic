@@ -35,6 +35,10 @@ class Mechanism:
     def observe(self, activations: list[torch.Tensor]) -> None:
         """Accumulate per-unit statistics (utility) from a step's activations."""
 
+    def before_optimizer_step(self, model: nn.Module, step_index: int) -> None:
+        """Act just before the optimiser step (e.g. snapshot weights so the applied
+        update can be rescaled per-unit afterwards). No-op by default."""
+
     def after_optimizer_step(self, model: nn.Module, step_index: int) -> None:
         """Modify the model in place after an optimiser step."""
 
@@ -53,6 +57,7 @@ def make_mechanism(name: str, config: Any = None) -> Mechanism | None:
         return None
     import mechanisms.biological  # noqa: F401  (registration side-effect)
     import mechanisms.baselines  # noqa: F401
+    import mechanisms.metaplasticity  # noqa: F401
 
     return MECHANISM_REGISTRY.get(name)(config)
 
