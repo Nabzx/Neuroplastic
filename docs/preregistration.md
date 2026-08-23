@@ -72,8 +72,8 @@ mechanistic study — *which failure mode each mechanism repairs*.
 
 ## Amendment (added after the main study, before running these)
 
-Two robustness analyses, motivated by the main result and specified here before
-being run:
+Robustness and rigor analyses, motivated by the main result and specified here
+before being run:
 
 - **A1 — plasticity-gain probe** (`scripts/probe_plasticity_gain.py`): re-run on an
   *independent-teacher* stream (fresh teacher per task). Prediction: if homeostatic's
@@ -83,3 +83,8 @@ being run:
   (SGD/Adam) × network width. Prediction to test: homeostatic scaling continues to
   exceed Continual Backprop; if the advantage vanishes under Adam or at scale, that
   is reported.
+- **A3 — hyper-parameter sensitivity** (`scripts/run_sensitivity.py`): sweep each
+  mechanism's key coefficient across a grid. Prediction: the advantage over
+  Continual Backprop is stable across a broad range (not a tuned point).
+- **A4 — statistical rigor**: report Cohen's d effect sizes and Holm-Bonferroni
+  corrected p-values (family-wise error control), and run MNIST at >= 10 seeds.

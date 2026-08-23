@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from analysis.statistics import permutation_test, summarise
+from analysis.statistics import holm_bonferroni, permutation_test, summarise
 from core.seeding import set_global_seed
 from data.streams import PermutedRegressionStream
 from mechanisms.base import make_mechanism
@@ -32,6 +32,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "lr": 0.01,
     "optimizer": "sgd",          # sgd | adam  (robustness: Continual Backprop's edge grows with Adam)
     "shared_teacher": True,      # False => independent teacher per task (probes the ratio<1 anomaly)
+    "mechanism_config": None,    # hyper-parameter overrides for the mechanism (sensitivity analysis)
 }
 METHODS = ["vanilla", "l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined"]
 PRIMARY_METRIC = "final_late_loss"
@@ -68,8 +69,9 @@ def _run_one(method: str, seed: int, cfg: Mapping[str, Any]) -> list[dict[str, f
     set_global_seed(seed)
     stream, model, loss_fn, metric_fn = _build_run(cfg, seed)
     optimizer = _build_optimizer(model, cfg)
+    mechanism = make_mechanism(method, cfg.get("mechanism_config"))
     return ContinualTrainer(
-        model, stream, optimizer, mechanism=make_mechanism(method), loss_fn=loss_fn, metric_fn=metric_fn
+        model, stream, optimizer, mechanism=mechanism, loss_fn=loss_fn, metric_fn=metric_fn
     ).run()
 
 
@@ -128,14 +130,27 @@ def significance_study(
     baselines: Sequence[str] = ("vanilla", "continual_backprop"),
     metric: str = PRIMARY_METRIC,
 ) -> dict[str, dict[str, dict[str, float]]]:
-    """Permutation tests of each method vs each baseline on ``metric``."""
-    values = {m: [per_seed_scalars(h, window)[metric] for h in hs] for m, hs in results.items()}
+    """Permutation tests of each method vs each baseline on ``metric``.
+
+    Each test reports difference, Cohen's d and a permutation p-value; a
+    Holm-Bonferroni ``p_value_holm`` is added per baseline family (across methods)
+    to control the family-wise error rate over multiple comparisons.
+    """
+    values = {m: [per_seed_scalars(h, window).get(metric, float("nan")) for h in hs] for m, hs in results.items()}
     tests: dict[str, dict[str, dict[str, float]]] = {}
     for method in results:
         tests[method] = {}
         for base in baselines:
             if base in values and method != base:
                 tests[method][f"vs_{base}"] = permutation_test(values[method], values[base])
+
+    # Holm-Bonferroni within each baseline family.
+    for base in baselines:
+        key = f"vs_{base}"
+        methods_tested = [m for m in tests if key in tests[m]]
+        adjusted = holm_bonferroni([tests[m][key]["p_value"] for m in methods_tested])
+        for method, adj in zip(methods_tested, adjusted):
+            tests[method][key]["p_value_holm"] = float(adj)
     return tests
 
 

@@ -116,8 +116,10 @@ Online SGD, a small MLP. **Synthetic**: 250 tasks, batch size 1, 10 seeds.
 **Permuted-MNIST**: 300 tasks, batch size 16, 8 seeds. Per run we reduce the task
 history to scalar metrics (final late loss / accuracy, plasticity ratio =
 final/early, dormant fraction, effective rank, weight magnitude). We report mean,
-standard deviation and bootstrap 95% CIs across seeds, and permutation tests of
-each mechanism vs vanilla and vs Continual Backprop. Hypotheses, benchmarks,
+standard deviation and bootstrap 95% CIs across seeds, permutation tests of each
+mechanism vs vanilla and vs Continual Backprop with **Cohen's d** effect sizes, and
+**Holm-Bonferroni** correction of p-values within each baseline family (controlling
+the family-wise error rate over the multiple mechanisms). Hypotheses, benchmarks,
 mechanisms, metrics and analysis were preregistered (`docs/preregistration.md`).
 
 ## 5. Results
@@ -191,7 +193,7 @@ loss; the mechanisms separate along **two near-orthogonal axes**:
 
 ## 7. Robustness analyses (design; results pending)
 
-Two analyses are implemented as preregistered follow-ups to harden the claim;
+Three analyses are implemented as preregistered follow-ups to harden the claim;
 their results are pending compute and will be added.
 
 **A1 — is the plasticity *gain* genuine? (`scripts/probe_plasticity_gain.py`)**
@@ -209,6 +211,13 @@ adaptive optimisers (momentum accumulation into dormant units) and at scale. We
 sweep optimiser (SGD / Adam) × network width and re-test whether homeostatic
 scaling still exceeds it. This is the key check separating a promising toy result
 from a robust one.
+
+**A3 — is the advantage a lucky hyper-parameter?
+(`scripts/run_sensitivity.py`)** The mechanism coefficients use literature-informed
+defaults. We sweep each mechanism's key hyper-parameter (e.g. the homeostatic
+scaling rate, the structural replacement rate) across a grid and check whether the
+method stays above the Continual Backprop reference across the range — a flat,
+insensitive curve indicates the result is not a lucky setting.
 
 ## 8. Limitations
 

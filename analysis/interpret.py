@@ -19,6 +19,12 @@ def _m(summary, method, metric):
     return summary.get(method, {}).get(metric, {}).get("mean", float("nan"))
 
 
+def _p(entry):
+    """Holm-corrected p-value if present, else the raw permutation p-value."""
+    holm = entry.get("p_value_holm")
+    return holm if holm is not None else entry.get("p_value", float("nan"))
+
+
 def _fmt(v):
     return "n/a" if v != v else f"{v:.3g}"
 
@@ -57,12 +63,12 @@ def generate_interpretation(summary: Mapping[str, Any], significance: Mapping[st
     # -- table ------------------------------------------------------------
     lines.append("## Results\n")
     acc_col = " accuracy |" if classification else ""
-    lines.append(f"| method |{acc_col} late loss | ratio | dormant | eff. rank | vs vanilla p | vs CBP p |")
+    lines.append(f"| method |{acc_col} late loss | ratio | dormant | eff. rank | p vs vanilla | p vs CBP |")
     lines.append("|---|---|---|---|---|" + ("---|" if classification else "") + "---|---|")
     for method in methods:
         sig = significance.get(method, {})
-        p_van = sig.get("vs_vanilla", {}).get("p_value", float("nan"))
-        p_cbp = sig.get(f"vs_{_SOTA}", {}).get("p_value", float("nan"))
+        p_van = _p(sig.get("vs_vanilla", {}))
+        p_cbp = _p(sig.get(f"vs_{_SOTA}", {}))
         acc_cell = f" {_fmt(_m(summary, method, 'final_accuracy'))} |" if classification else ""
         lines.append(
             f"| {'**' + method + '**' if method in _OURS else method} |{acc_cell} "
@@ -79,18 +85,18 @@ def generate_interpretation(summary: Mapping[str, Any], significance: Mapping[st
     best = ranked[0] if ranked else "n/a"
     best_val = _fmt(_m(summary, best, key_metric))
     lines.append(f"- **Best retained plasticity:** `{best}` ({'accuracy' if classification else 'late loss'} {best_val}).")
-    lines.append(f"- **Vanilla** loses plasticity (ratio {_fmt(_m(summary, 'vanilla', 'plasticity_ratio'))} > 1).\n")
+    lines.append(f"- **Vanilla** loses plasticity (ratio {_fmt(_m(summary, 'vanilla', 'plasticity_ratio'))} > 1).")
+    lines.append("- p-values are **Holm-Bonferroni corrected** within each baseline family; effect sizes (Cohen's d) are in `summary_statistics.json`.\n")
 
     # -- H1 / H3 verdicts -------------------------------------------------
     ours = [m for m in _OURS if m in summary]
     beats_vanilla = [
         m for m in ours
-        if significance.get(m, {}).get("vs_vanilla", {}).get("p_value", 1.0) < _ALPHA and better(m, "vanilla")
+        if _p(significance.get(m, {}).get("vs_vanilla", {})) < _ALPHA and better(m, "vanilla")
     ]
     beats_sota = [m for m in ours if _SOTA in summary and better(m, _SOTA)]
     sig_beats_sota = [
-        m for m in beats_sota
-        if significance.get(m, {}).get(f"vs_{_SOTA}", {}).get("p_value", 1.0) < _ALPHA
+        m for m in beats_sota if _p(significance.get(m, {}).get(f"vs_{_SOTA}", {})) < _ALPHA
     ]
 
     lines.append("## H1 — do biological mechanisms preserve plasticity?\n")

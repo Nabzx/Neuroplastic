@@ -57,12 +57,38 @@ def permutation_test(
         rng.shuffle(combined)
         if abs(combined[:n_a].mean() - combined[n_a:].mean()) >= observed - 1e-12:
             count += 1
+
+    # Cohen's d (pooled) effect size -- reported alongside the p-value.
+    if x.size > 1 and y.size > 1:
+        pooled = np.sqrt(((x.size - 1) * x.var(ddof=1) + (y.size - 1) * y.var(ddof=1)) / (x.size + y.size - 2))
+        cohens_d = float((x.mean() - y.mean()) / pooled) if pooled > 0 else 0.0
+    else:
+        cohens_d = float("nan")
+
     return {
         "difference": float(x.mean() - y.mean()),
+        "cohens_d": cohens_d,
         "p_value": float((count + 1) / (n_permutations + 1)),
         "n_a": int(n_a),
         "n_b": int(y.size),
     }
 
 
-__all__ = ["bootstrap_ci", "summarise", "permutation_test"]
+def holm_bonferroni(pvalues: Sequence[float]) -> list[float]:
+    """Holm-Bonferroni step-down adjusted p-values (same order as input).
+
+    Controls the family-wise error rate across a family of comparisons and is more
+    powerful than plain Bonferroni. NaNs pass through unchanged.
+    """
+    p = list(pvalues)
+    valid = [(i, v) for i, v in enumerate(p) if v == v]
+    m = len(valid)
+    adjusted = list(p)
+    running = 0.0
+    for rank, (idx, value) in enumerate(sorted(valid, key=lambda t: t[1])):
+        running = max(running, (m - rank) * value)
+        adjusted[idx] = min(1.0, running)
+    return adjusted
+
+
+__all__ = ["bootstrap_ci", "summarise", "permutation_test", "holm_bonferroni"]

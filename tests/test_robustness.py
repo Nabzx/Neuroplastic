@@ -6,8 +6,10 @@ pytest.importorskip("torch")
 
 import torch  # noqa: E402
 
+from analysis.statistics import holm_bonferroni, permutation_test  # noqa: E402
 from data.streams import PermutedRegressionStream  # noqa: E402
-from experiments.study import _build_optimizer, aggregate_study, run_study  # noqa: E402
+from experiments.study import _build_optimizer, aggregate_study, run_study, significance_study  # noqa: E402
+from mechanisms.base import make_mechanism  # noqa: E402
 from models.mlp import MLP  # noqa: E402
 
 
@@ -43,3 +45,35 @@ def test_study_runs_with_adam_and_independent_teachers():
     summary = aggregate_study(bundle["results"], window=1)
     assert set(summary) == {"vanilla", "homeostatic"}
     assert len(bundle["results"]["vanilla"][0]) == 3          # one record per task
+
+
+# --------------------------------------------------------------------------- #
+# A3/A4: sensitivity hyper-parameters + statistics rigor
+# --------------------------------------------------------------------------- #
+def test_mechanism_config_override():
+    mech = make_mechanism("homeostatic", {"rate": 0.5})
+    assert mech.rate == 0.5                                   # sensitivity sweep can override
+    struct = make_mechanism("structural", {"replacement_rate": 5e-3})
+    assert struct.replacement_rate == 5e-3
+
+
+def test_permutation_test_reports_cohens_d():
+    result = permutation_test([10, 11, 12, 13, 14], [0, 1, 2, 3, 4])
+    assert "cohens_d" in result and result["cohens_d"] > 2.0  # large effect
+
+
+def test_holm_bonferroni_monotone():
+    adjusted = holm_bonferroni([0.01, 0.04, 0.03])
+    assert adjusted[0] == pytest.approx(0.03)                 # 3 * 0.01
+    assert all(0.0 <= a <= 1.0 for a in adjusted)
+    assert adjusted[0] <= adjusted[2]                         # most significant stays smallest
+
+
+def test_significance_study_adds_holm_correction():
+    def hist(base):
+        return [{"train_loss_late": base, "dormant_fraction": 0.1, "effective_rank": 10.0, "weight_magnitude": 0.1} for _ in range(30)]
+
+    results = {"vanilla": [hist(0.8), hist(0.82)], "homeostatic": [hist(0.5), hist(0.52)]}
+    sig = significance_study(results, window=10, baselines=("vanilla",))
+    entry = sig["homeostatic"]["vs_vanilla"]
+    assert "p_value_holm" in entry and "cohens_d" in entry

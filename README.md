@@ -40,7 +40,10 @@ python scripts/run_study.py --benchmark permuted_mnist --seeds 8 --num-tasks 300
 ```bash
 python scripts/probe_plasticity_gain.py   # A1: is the plasticity gain genuine or shared-structure?
 python scripts/run_robustness.py          # A2: does the win survive Adam and larger nets?
+python scripts/run_sensitivity.py --method homeostatic --param rate --values 0.02 0.05 0.1 0.2 0.4  # A3
 ```
+
+Statistics report Cohen's d effect sizes and Holm-Bonferroni-corrected p-values (A4).
 
 ## The phenomenon (reproduced)
 
