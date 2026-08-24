@@ -13,13 +13,17 @@ from training.continual import ContinualTrainer  # noqa: E402
 
 
 def test_metaplastic_methods_registered():
-    for name in ["metaplastic", "metaplastic_consolidation", "metaplastic_homeostatic"]:
+    for name in ["metaplastic", "intrinsic", "selective_intrinsic", "metaplastic_consolidation",
+                 "metaplastic_homeostatic", "metaplastic_reactivation", "metaplastic_structural",
+                 "selective_intrinsic_homeostatic", "metaplastic_combined"]:
         mech = make_mechanism(name)
         assert mech is not None
         assert name in MECHANISM_REGISTRY
     # activity-driven variants need the forward activations; the weight-history foil does not
     assert make_mechanism("metaplastic").requires_activations is True
-    assert make_mechanism("metaplastic_homeostatic").requires_activations is True
+    assert make_mechanism("intrinsic").requires_activations is True
+    assert make_mechanism("metaplastic_reactivation").requires_activations is True
+    assert make_mechanism("metaplastic_structural").requires_activations is True
     assert make_mechanism("metaplastic_consolidation").requires_activations is False
 
 
@@ -82,7 +86,44 @@ def test_consolidation_foil_protects_large_settled_weights():
     assert applied[0].abs().mean() < applied[1].abs().mean()   # consolidated row moved less
 
 
-@pytest.mark.parametrize("name", ["metaplastic", "metaplastic_homeostatic", "metaplastic_consolidation"])
+def test_intrinsic_plasticity_raises_bias_of_dormant_units():
+    net = MLP(input_dim=4, hidden_dim=4, num_hidden_layers=1)
+    mech = make_mechanism("intrinsic", {"rate": 0.5, "ema_decay": 0.0})
+    base = torch.ones(8, 4)
+    mech.observe([base])                      # set-point a* = 1.0, activity = 1
+    acts = base.clone()
+    acts[:, 0] = 0.0                          # unit 0 dormant
+    mech.observe([acts])                      # ema_decay 0 => activity = [0, 1, 1, 1]
+
+    before = net.hidden_layers[0].bias.detach().clone()
+    mech.after_optimizer_step(net, 0)
+    delta = (net.hidden_layers[0].bias.detach() - before)
+    assert delta[0] > 0                       # dormant unit: bias raised (gradient-free revival)
+    assert float(delta[1]) == pytest.approx(0.0, abs=1e-6)   # at set-point: bias unchanged
+
+
+def test_selective_intrinsic_revives_only_dead_units():
+    net = MLP(input_dim=4, hidden_dim=4, num_hidden_layers=1)
+    mech = make_mechanism("selective_intrinsic", {"rate": 0.5, "ema_decay": 0.0, "dead_threshold": 0.15})
+    base = torch.ones(8, 4)
+    mech.observe([base])                      # set-point a* = 1.0
+    acts = base.clone()
+    acts[:, 0] = 0.0                          # unit 0 dead (0 < 0.15)
+    acts[:, 1] = 0.5                          # unit 1 low but alive (0.5 > 0.15) -> must be left alone
+    mech.observe([acts])                      # activity = [0, 0.5, 1, 1]
+
+    before = net.hidden_layers[0].bias.detach().clone()
+    mech.after_optimizer_step(net, 0)
+    delta = net.hidden_layers[0].bias.detach() - before
+    assert delta[0] > 0                                        # dead unit revived
+    assert float(delta[1]) == pytest.approx(0.0, abs=1e-6)     # low-but-alive unit preserved
+    assert float(delta[2]) == pytest.approx(0.0, abs=1e-6)     # healthy unit untouched
+
+
+@pytest.mark.parametrize("name", ["metaplastic", "intrinsic", "selective_intrinsic",
+                                   "metaplastic_homeostatic", "metaplastic_reactivation",
+                                   "metaplastic_structural", "selective_intrinsic_homeostatic",
+                                   "metaplastic_combined", "metaplastic_consolidation"])
 def test_metaplastic_runs_in_trainer(name):
     stream = PermutedRegressionStream(input_dim=8, num_tasks=3, task_length=20, seed=0)
     net = MLP(input_dim=8, hidden_dim=16, num_hidden_layers=2)
