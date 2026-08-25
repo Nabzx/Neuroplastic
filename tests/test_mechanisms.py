@@ -14,9 +14,10 @@ from models.mlp import MLP  # noqa: E402
 from training.continual import ContinualTrainer  # noqa: E402
 
 ALL = ["l2", "shrink_perturb", "redo", "continual_backprop", "homeostatic", "structural", "combined",
-       "metaplastic", "intrinsic", "selective_intrinsic", "metaplastic_consolidation",
+       "metaplastic", "intrinsic", "selective_intrinsic", "btsp", "metaplastic_consolidation",
        "metaplastic_homeostatic", "metaplastic_reactivation", "metaplastic_structural",
-       "selective_intrinsic_homeostatic", "metaplastic_combined"]
+       "selective_intrinsic_homeostatic", "metaplastic_combined", "btsp_homeostatic",
+       "metaplastic_triad"]
 
 
 def test_make_mechanism_all_registered():

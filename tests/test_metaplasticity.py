@@ -13,12 +13,17 @@ from training.continual import ContinualTrainer  # noqa: E402
 
 
 def test_metaplastic_methods_registered():
-    for name in ["metaplastic", "intrinsic", "selective_intrinsic", "metaplastic_consolidation",
+    for name in ["metaplastic", "intrinsic", "selective_intrinsic", "btsp", "metaplastic_consolidation",
                  "metaplastic_homeostatic", "metaplastic_reactivation", "metaplastic_structural",
-                 "selective_intrinsic_homeostatic", "metaplastic_combined"]:
+                 "selective_intrinsic_homeostatic", "metaplastic_combined", "btsp_homeostatic",
+                 "metaplastic_triad"]:
         mech = make_mechanism(name)
         assert mech is not None
         assert name in MECHANISM_REGISTRY
+    # BTSP-bearing mechanisms need the step context (input + loss); others do not
+    assert make_mechanism("btsp").requires_context is True
+    assert make_mechanism("metaplastic_triad").requires_context is True
+    assert make_mechanism("homeostatic").requires_context is False
     # activity-driven variants need the forward activations; the weight-history foil does not
     assert make_mechanism("metaplastic").requires_activations is True
     assert make_mechanism("intrinsic").requires_activations is True
@@ -120,10 +125,47 @@ def test_selective_intrinsic_revives_only_dead_units():
     assert float(delta[2]) == pytest.approx(0.0, abs=1e-6)     # healthy unit untouched
 
 
-@pytest.mark.parametrize("name", ["metaplastic", "intrinsic", "selective_intrinsic",
+def test_btsp_imprints_dead_unit_toward_input_on_high_loss():
+    net = MLP(input_dim=4, hidden_dim=4, num_hidden_layers=1)
+    mech = make_mechanism("btsp", {"rate": 1.0, "dead_threshold": 0.15, "loss_factor": 0.0,
+                                    "ema_decay": 0.0, "refractory": 0})
+    healthy = torch.ones(8, 4)
+    mech.observe([healthy])                   # set-point a* = 1.0
+    acts = healthy.clone()
+    acts[:, 0] = 0.0                          # unit 0 dead
+    mech.observe([acts])                      # activity = [0, 1, 1, 1]
+    x = torch.zeros(8, 4)
+    x[:, 1] = 1.0                             # input pattern: feature 1 active
+    mech.observe_context(x, [acts], loss=0.5)  # loss_factor 0 => any positive loss triggers
+
+    before = net.hidden_layers[0].weight.detach().clone()
+    mech.after_optimizer_step(net, 0)
+    dW = net.hidden_layers[0].weight.detach() - before
+    assert float(dW[0, 1]) == pytest.approx(1.0, abs=1e-5)   # dead unit imprinted toward feature 1
+    assert float(dW[0, 0]) == pytest.approx(0.0, abs=1e-5)   # ...only along the input direction
+    assert torch.allclose(dW[1], torch.zeros(4), atol=1e-6)  # active unit untouched
+
+
+def test_btsp_silent_without_instructive_signal():
+    net = MLP(input_dim=4, hidden_dim=4, num_hidden_layers=1)
+    mech = make_mechanism("btsp", {"rate": 1.0, "dead_threshold": 0.15, "loss_factor": 100.0,
+                                    "ema_decay": 0.0})
+    healthy = torch.ones(8, 4)
+    mech.observe([healthy])
+    acts = healthy.clone(); acts[:, 0] = 0.0
+    mech.observe([acts])
+    x = torch.zeros(8, 4); x[:, 1] = 1.0
+    mech.observe_context(x, [acts], loss=0.5)   # 0.5 is not > 100 x loss-EMA => no plateau
+    before = net.hidden_layers[0].weight.detach().clone()
+    mech.after_optimizer_step(net, 0)
+    assert torch.allclose(net.hidden_layers[0].weight.detach(), before)   # no imprint
+
+
+@pytest.mark.parametrize("name", ["metaplastic", "intrinsic", "selective_intrinsic", "btsp",
                                    "metaplastic_homeostatic", "metaplastic_reactivation",
                                    "metaplastic_structural", "selective_intrinsic_homeostatic",
-                                   "metaplastic_combined", "metaplastic_consolidation"])
+                                   "metaplastic_combined", "btsp_homeostatic", "metaplastic_triad",
+                                   "metaplastic_consolidation"])
 def test_metaplastic_runs_in_trainer(name):
     stream = PermutedRegressionStream(input_dim=8, num_tasks=3, task_length=20, seed=0)
     net = MLP(input_dim=8, hidden_dim=16, num_hidden_layers=2)

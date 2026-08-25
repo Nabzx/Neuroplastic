@@ -26,6 +26,8 @@ class PlasticityMechanism(Protocol):
     requires_activations: bool
 
     def observe(self, activations: list[torch.Tensor]) -> None: ...
+    def observe_context(self, network_input: torch.Tensor,
+                        activations: list[torch.Tensor], loss: float) -> None: ...
     def before_optimizer_step(self, model: nn.Module, step_index: int) -> None: ...
     def after_optimizer_step(self, model: nn.Module, step_index: int) -> None: ...
 
@@ -57,6 +59,7 @@ class ContinualTrainer:
         """Train across the whole stream; return one metric record per task."""
         probe = self.stream.probe_batch().to(self.device)
         wants_acts = bool(getattr(self.mechanism, "requires_activations", False))
+        wants_ctx = bool(getattr(self.mechanism, "requires_context", False))
 
         history: list[dict[str, float]] = []
         current_task = -1
@@ -86,7 +89,10 @@ class ContinualTrainer:
 
             if self.mechanism is not None:
                 if wants_acts and activations is not None:
-                    self.mechanism.observe([a.detach() for a in activations])
+                    acts = [a.detach() for a in activations]
+                    self.mechanism.observe(acts)
+                    if wants_ctx:
+                        self.mechanism.observe_context(step.x.detach(), acts, float(loss.item()))
                 self.mechanism.after_optimizer_step(self.model, step_index)
 
             losses.append(float(loss.item()))

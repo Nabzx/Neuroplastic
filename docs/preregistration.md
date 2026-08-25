@@ -117,3 +117,27 @@ Directional predictions, fixed here before any run; all outcomes reported:
 Falsifiable: if HM3 fails, smooth reawakening does not match discrete resets on some
 configs (as homeostatic did not beat CBP on the large SGD net in A2) — reported
 honestly. If HM5's foil *helps*, the direction hypothesis is wrong.
+
+## Amendment — BTSP triad (registered before running)
+
+Findings so far: metaplastic learning-rate modulation fails (dead ReLUs have ~zero
+gradient); plain intrinsic plasticity drives dormant→0 and rank→max yet *hurts* the task
+(the standard diagnostics decouple from plasticity); the best mechanism found,
+`selective_intrinsic_homeostatic` (intrinsic + synaptic scaling), significantly beats the
+SOTA (Continual Backprop) but only *ties* homeostatic scaling. Motivated by the biological
+three-timescale metaplasticity model — BTSP + intrinsic plasticity (IP) + synaptic scaling
+(SS) (Abraham & Bear; Francis et al., 2025) — we add the missing element, **behavioral-
+timescale synaptic plasticity** (`btsp`; Bittner et al., 2017): a fast, gradient-free,
+*error-gated, input-structured* revival that imprints dormant units toward the current
+(hard) input, and the full triad `metaplastic_triad` (BTSP + IP + SS). Predictions, fixed
+before running; all outcomes reported:
+
+- **HB1 — plasticity preserved, SOTA beaten.** `metaplastic_triad` beats vanilla and
+  Continual Backprop (expected, since IP+SS already does).
+- **HB2 — structured revival avoids the decoupling trap.** BTSP reduces the dormant
+  fraction *and* lowers late loss, because its revival is aligned to error-reducing inputs
+  — unlike plain intrinsic, whose indiscriminate revival lowered dormancy but hurt the task.
+- **HB3 — the ceiling test.** The triad matches or *exceeds* homeostatic / combined. If it
+  does, structured (BTSP) revival surpasses blanket homeostasis; if it merely ties, that is
+  further evidence that homeostatic regulation is the empirical ceiling here — reported
+  honestly either way.

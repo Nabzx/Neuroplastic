@@ -28,12 +28,21 @@ class Mechanism:
 
     #: Set True if the mechanism needs the forward-pass hidden activations.
     requires_activations: bool = False
+    #: Set True if the mechanism needs the step context (network input + loss), e.g. BTSP.
+    requires_context: bool = False
 
     def __init__(self, config: Any = None) -> None:
         self.config = config
 
     def observe(self, activations: list[torch.Tensor]) -> None:
         """Accumulate per-unit statistics (utility) from a step's activations."""
+
+    def observe_context(self, network_input: torch.Tensor,
+                        activations: list[torch.Tensor], loss: float) -> None:
+        """Receive the step's network input, hidden activations, and scalar loss.
+
+        Needed only by input-structured / error-gated rules (e.g. BTSP, which imprints
+        dormant units toward the current input on high-loss steps). No-op by default."""
 
     def before_optimizer_step(self, model: nn.Module, step_index: int) -> None:
         """Act just before the optimiser step (e.g. snapshot weights so the applied

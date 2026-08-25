@@ -164,6 +164,76 @@ class IntrinsicPlasticity(Mechanism):
             layer.bias.add_(self.rate * gap.to(layer.bias.device, layer.bias.dtype))
 
 
+@MECHANISM_REGISTRY.register("btsp")
+class BehavioralTimescalePlasticity(Mechanism):
+    """Behavioral-timescale synaptic plasticity (Bittner et al., 2017) for dead-unit revival.
+
+    A fast, one-shot, gradient-free potentiation gated by an instructive signal. On a
+    high-loss step (the analogue of a dendritic plateau potential), each *dormant* hidden
+    unit has its incoming weights imprinted toward the current pre-synaptic input pattern,
+    so it starts responding to inputs the network is currently failing on. Unlike Continual
+    Backprop's random reset or shrink-and-perturb's noise, the injected diversity is
+    *structured* (input-aligned) and *targeted* (error-gated) -- directly restoring gradient
+    flow to the zero-gradient dead units that defeat learning-rate metaplasticity. A per-unit
+    refractory period enforces the one-shot character.
+
+    Config: ``rate`` (imprint magnitude), ``dead_threshold`` (fraction of the activity
+    set-point below which a unit counts as dead), ``loss_factor`` (a step triggers when its
+    loss exceeds loss_factor x the running loss EMA), ``refractory`` (min steps between
+    imprints of the same unit), ``ema_decay``.
+    """
+
+    requires_activations = True
+    requires_context = True
+
+    def __init__(self, config: Any = None) -> None:
+        super().__init__(config)
+        c = config or {}
+        self.rate = float(c.get("rate", 0.1))
+        self.dead_threshold = float(c.get("dead_threshold", 0.15))
+        self.loss_factor = float(c.get("loss_factor", 1.5))
+        self.refractory = int(c.get("refractory", 50))
+        self.eps = float(c.get("eps", 1e-8))
+        self._sp = _ActivitySetPoint(float(c.get("ema_decay", 0.99)), self.eps)
+        self._loss_ema: float | None = None
+        self._triggered = False
+        self._x: torch.Tensor | None = None
+        self._acts: list[torch.Tensor] | None = None
+        self._last: list[torch.Tensor] | None = None      # per-unit last-imprint step
+
+    def observe(self, activations: list[torch.Tensor]) -> None:
+        self._sp.update(activations)
+
+    def observe_context(self, network_input: torch.Tensor,
+                        activations: list[torch.Tensor], loss: float) -> None:
+        self._x = network_input.detach()
+        self._acts = [a.detach() for a in activations]
+        if self._loss_ema is None:
+            self._loss_ema = loss
+        self._triggered = loss > self.loss_factor * self._loss_ema     # plateau / instructive signal
+        self._loss_ema = self._sp.decay * self._loss_ema + (1.0 - self._sp.decay) * loss
+
+    @torch.no_grad()
+    def after_optimizer_step(self, model: nn.Module, step_index: int) -> None:
+        if not self._triggered or self._sp.act is None or self._x is None:
+            return
+        self._triggered = False
+        inputs = [self._x] + self._acts[:-1]                           # pre-synaptic input per layer
+        if self._last is None:
+            self._last = [torch.full((a.shape[0],), -1e9) for a in self._sp.act]
+        for l, layer in enumerate(model.hidden_layers):
+            pre = inputs[l].reshape(inputs[l].shape[0], -1).mean(dim=0)  # mean pre-synaptic pattern
+            norm = pre.norm()
+            if float(norm) < self.eps:
+                continue
+            direction = (pre / norm).to(layer.weight.device, layer.weight.dtype)
+            dead = self._sp.act[l] < self.dead_threshold * self._sp.setpoint[l]
+            ready = (step_index - self._last[l]) >= self.refractory
+            for i in torch.nonzero(dead & ready).flatten().tolist():
+                layer.weight[i].add_(self.rate * direction)            # imprint toward current input
+                self._last[l][i] = float(step_index)
+
+
 @MECHANISM_REGISTRY.register("metaplastic_consolidation")
 class ConsolidationMetaplasticity(Mechanism):
     """Forgetting-direction foil: protect large, settled weights (predicted not to help).
@@ -212,10 +282,20 @@ class _Composite(Mechanism):
     requires_activations = True
     parts: list[Mechanism]
 
+    @property
+    def requires_context(self) -> bool:  # type: ignore[override]
+        return any(getattr(p, "requires_context", False) for p in self.parts)
+
     def observe(self, activations: list[torch.Tensor]) -> None:
         for part in self.parts:
             if part.requires_activations:
                 part.observe(activations)
+
+    def observe_context(self, network_input: torch.Tensor,
+                        activations: list[torch.Tensor], loss: float) -> None:
+        for part in self.parts:
+            if getattr(part, "requires_context", False):
+                part.observe_context(network_input, activations, loss)
 
     def before_optimizer_step(self, model: nn.Module, step_index: int) -> None:
         for part in self.parts:
@@ -319,14 +399,53 @@ class MetaplasticCombined(_Composite):
         ]
 
 
+@MECHANISM_REGISTRY.register("btsp_homeostatic")
+class BtspHomeostatic(_Composite):
+    """BTSP dead-unit revival + homeostatic synaptic scaling (does BTSP add to SS alone?)."""
+
+    def __init__(self, config: Any = None) -> None:
+        super().__init__(config)
+        from mechanisms.biological import HomeostaticScaling  # local import: avoid cycle
+
+        c = config or {}
+        self.parts = [BehavioralTimescalePlasticity(c.get("btsp")), HomeostaticScaling(c.get("homeostatic"))]
+
+
+@MECHANISM_REGISTRY.register("metaplastic_triad")
+class MetaplasticTriad(_Composite):
+    """The three-timescale metaplasticity model: BTSP + intrinsic + synaptic scaling.
+
+    Behavioral-timescale synaptic plasticity (fast, input-structured dead-unit revival),
+    intrinsic plasticity (medium, dead-only excitability/bias homeostasis) and homeostatic
+    synaptic scaling (slow, weight-norm homeostasis) -- the BTSP+IP+SS triad (metaplasticity
+    in the Abraham & Bear sense of coordinated plasticity across timescales; cf. the BCI
+    model of Francis et al., 2025), applied to loss of plasticity. BTSP sets *which inputs*
+    a revived unit responds to, IP restores its *excitability*, SS regulates its *magnitude*.
+    """
+
+    def __init__(self, config: Any = None) -> None:
+        super().__init__(config)
+        from mechanisms.biological import HomeostaticScaling  # local import: avoid cycle
+
+        c = config or {}
+        self.parts = [
+            BehavioralTimescalePlasticity(c.get("btsp")),
+            SelectiveIntrinsic(c.get("intrinsic")),
+            HomeostaticScaling(c.get("homeostatic")),
+        ]
+
+
 __all__ = [
     "MetaplasticLR",
     "IntrinsicPlasticity",
     "SelectiveIntrinsic",
+    "BehavioralTimescalePlasticity",
     "ConsolidationMetaplasticity",
     "MetaplasticHomeostatic",
     "MetaplasticReactivation",
     "MetaplasticStructural",
     "SelectiveIntrinsicHomeostatic",
     "MetaplasticCombined",
+    "BtspHomeostatic",
+    "MetaplasticTriad",
 ]
